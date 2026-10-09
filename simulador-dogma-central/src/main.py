@@ -1,5 +1,7 @@
 from Bio import SeqIO
-
+from replicacion import replicar_adn
+from transcripcion import transcribir_adn
+from traduccion import traducir_arn
 
 # Leer el archivo GenBank
 registro = SeqIO.read(
@@ -41,3 +43,10 @@ print("  ", "|" * 60)
 
 print("Cadena molde:")
 print("3'", cadena_molde[:60], "5'")
+
+# REPLICACIÓN
+cadena_lider, cadena_rezagada = replicar_adn(adn)
+# TRANSCRIPCIÓN
+arn_m = transcribir_adn(adn)
+# TRADUCCIÓN
+proteina = traducir_arn(arn_m)
