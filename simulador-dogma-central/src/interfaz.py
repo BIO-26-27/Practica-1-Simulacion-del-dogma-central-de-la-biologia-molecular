@@ -1,18 +1,65 @@
-import customtkinter as ctk
-
+import tkinter as tk
 from tkinter import filedialog
 from pathlib import Path
 
+import customtkinter as ctk
 from Bio import SeqIO
 from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
 
 
 # ============================================================
-# CONFIGURACIÓN GENERAL
+# TEMA VISUAL
 # ============================================================
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
+
+BG = "#111315"
+SIDEBAR = "#171A1D"
+PANEL = "#1B1F23"
+PANEL_2 = "#20252A"
+BORDER = "#2D333A"
+
+TEXT = "#F3F4F6"
+MUTED = "#A7ADB5"
+SUBTLE = "#727A84"
+
+DNA = "#5CA8FF"
+RNA = "#58D6B0"
+PROTEIN = "#F2C14E"
+ACCENT = "#5CA8FF"
+SUCCESS = "#58D6B0"
+WARNING = "#F2C14E"
+ERROR = "#FF7676"
+
+MONO = "Menlo"
+
+
+AMINOACIDOS = {
+    "A": "Alanina",
+    "R": "Arginina",
+    "N": "Asparagina",
+    "D": "Aspartato",
+    "C": "Cisteína",
+    "E": "Glutamato",
+    "Q": "Glutamina",
+    "G": "Glicina",
+    "H": "Histidina",
+    "I": "Isoleucina",
+    "L": "Leucina",
+    "K": "Lisina",
+    "M": "Metionina",
+    "F": "Fenilalanina",
+    "P": "Prolina",
+    "S": "Serina",
+    "T": "Treonina",
+    "W": "Triptófano",
+    "Y": "Tirosina",
+    "V": "Valina",
+    "*": "STOP",
+    "X": "Desconocido",
+}
 
 
 class SimuladorDogmaCentral(ctk.CTk):
@@ -20,2153 +67,1580 @@ class SimuladorDogmaCentral(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        # ====================================================
-        # VENTANA PRINCIPAL
-        # ====================================================
-
         self.title("Simulador del Dogma Central")
-        self.geometry("1350x820")
-        self.minsize(1100, 680)
+        self.geometry("1420x860")
+        self.minsize(1180, 720)
+        self.configure(fg_color=BG)
 
-        # ====================================================
-        # DATOS
-        # ====================================================
-
+        # Datos
         self.registro = None
         self.adn = None
         self.ruta_archivo = None
 
-        # Resultados de replicación
+        # Replicación
         self.cadena_lider = None
         self.cadena_rezagada = None
         self.cebador_lider = None
         self.fragmentos_okazaki = []
-
-        # Resultados de transcripción
-        self.arn_m = None
-
-        # Resultados de traducción
-        self.proteina = None
-        self.codon_stop = None
-        self.posicion_stop = None
-
-        # Estado de la simulación
         self.replicacion_realizada = False
-        self.transcripcion_realizada = False
-        self.traduccion_realizada = False
 
-        # ====================================================
-        # GRID PRINCIPAL
-        # ====================================================
+        # Transcripción
+        self.arn_m = None
+        self.transcripcion_realizada = False
+
+        # Traducción
+        self.proteina = None
+        self.inicio_traduccion = None
+        self.codon_stop = None
+        self.posicion_stop_nt = None
+        self.posicion_stop_codon = None
+        self.codones_traducidos = []
+        self.traduccion_realizada = False
 
         self.grid_columnconfigure(0, weight=0)
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        # ====================================================
-        # CREAR INTERFAZ
-        # ====================================================
-
-        self.crear_barra_lateral()
-        self.crear_contenido_principal()
-
+        self.crear_sidebar()
+        self.crear_main()
         self.mostrar_inicio()
 
-
     # ========================================================
-    # BARRA LATERAL
+    # ESTRUCTURA GENERAL
     # ========================================================
 
-    def crear_barra_lateral(self):
-
+    def crear_sidebar(self):
         self.sidebar = ctk.CTkFrame(
             self,
-            width=220,
-            corner_radius=0
+            width=215,
+            corner_radius=0,
+            fg_color=SIDEBAR,
         )
-
-        self.sidebar.grid(
-            row=0,
-            column=0,
-            sticky="nsew"
-        )
-
+        self.sidebar.grid(row=0, column=0, sticky="nsew")
         self.sidebar.grid_propagate(False)
         self.sidebar.pack_propagate(False)
 
-        # ----------------------------------------------------
-        # LOGO / TÍTULO
-        # ----------------------------------------------------
+        marca = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        marca.pack(fill="x", padx=20, pady=(28, 26))
 
         ctk.CTkLabel(
-            self.sidebar,
-            text="🧬 BIOINFO",
-            font=ctk.CTkFont(
-                size=24,
-                weight="bold"
-            )
-        ).pack(
-            padx=20,
-            pady=(30, 4)
-        )
+            marca,
+            text="◉",
+            text_color=DNA,
+            font=ctk.CTkFont(size=25, weight="bold"),
+        ).pack(side="left", padx=(0, 9))
+
+        textos = ctk.CTkFrame(marca, fg_color="transparent")
+        textos.pack(side="left")
 
         ctk.CTkLabel(
-            self.sidebar,
-            text="Dogma Central",
-            text_color="gray70",
-            font=ctk.CTkFont(size=14)
-        ).pack(
-            padx=20,
-            pady=(0, 35)
-        )
+            textos,
+            text="BIOINFO",
+            text_color=TEXT,
+            font=ctk.CTkFont(size=21, weight="bold"),
+        ).pack(anchor="w")
 
-        # ----------------------------------------------------
-        # BOTONES
-        # ----------------------------------------------------
+        ctk.CTkLabel(
+            textos,
+            text="Dogma central",
+            text_color=SUBTLE,
+            font=ctk.CTkFont(size=12),
+        ).pack(anchor="w")
 
-        self.boton_inicio = self.crear_boton_menu(
-            "⌂  Inicio",
-            self.mostrar_inicio
-        )
-
-        self.boton_adn = self.crear_boton_menu(
-            "🧬  ADN",
-            self.mostrar_adn
-        )
-
-        self.boton_replicacion = self.crear_boton_menu(
-            "↻  Replicación",
-            self.mostrar_replicacion
-        )
-
-        self.boton_transcripcion = self.crear_boton_menu(
-            "→  Transcripción",
-            self.mostrar_transcripcion
-        )
-
-        self.boton_traduccion = self.crear_boton_menu(
-            "⚗  Traducción",
-            self.mostrar_traduccion
-        )
-
-        self.boton_resultados = self.crear_boton_menu(
-            "✓  Resultados",
-            self.mostrar_resultados
-        )
+        self.btn_inicio = self.crear_btn_menu("Inicio", self.mostrar_inicio)
+        self.btn_adn = self.crear_btn_menu("ADN", self.mostrar_adn)
+        self.btn_rep = self.crear_btn_menu("Replicación", self.mostrar_replicacion)
+        self.btn_trans = self.crear_btn_menu("Transcripción", self.mostrar_transcripcion)
+        self.btn_trad = self.crear_btn_menu("Traducción", self.mostrar_traduccion)
+        self.btn_res = self.crear_btn_menu("Resultados", self.mostrar_resultados)
 
         self.botones_menu = [
-            self.boton_inicio,
-            self.boton_adn,
-            self.boton_replicacion,
-            self.boton_transcripcion,
-            self.boton_traduccion,
-            self.boton_resultados
+            self.btn_inicio,
+            self.btn_adn,
+            self.btn_rep,
+            self.btn_trans,
+            self.btn_trad,
+            self.btn_res,
         ]
 
-        # ----------------------------------------------------
-        # TEXTO INFERIOR
-        # ----------------------------------------------------
+        pie = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        pie.pack(side="bottom", fill="x", padx=20, pady=22)
 
         ctk.CTkLabel(
-            self.sidebar,
-            text="Práctica 1\nBioinformática",
-            justify="left",
-            text_color="gray60",
-            font=ctk.CTkFont(size=12)
-        ).pack(
-            side="bottom",
-            padx=20,
-            pady=25,
-            anchor="w"
-        )
+            pie,
+            text="Práctica 1 · Bioinformática",
+            text_color=SUBTLE,
+            font=ctk.CTkFont(size=11),
+        ).pack(anchor="w")
 
+        ctk.CTkLabel(
+            pie,
+            text="Python + Biopython",
+            text_color=SUBTLE,
+            font=ctk.CTkFont(size=11),
+        ).pack(anchor="w", pady=(4, 0))
 
-    def crear_boton_menu(self, texto, comando):
-
+    def crear_btn_menu(self, texto, comando):
         boton = ctk.CTkButton(
             self.sidebar,
             text=texto,
             command=comando,
-            height=46,
+            height=42,
             anchor="w",
+            corner_radius=8,
             fg_color="transparent",
-            hover_color=("gray80", "gray25"),
-            font=ctk.CTkFont(
-                size=15,
-                weight="bold"
-            )
+            hover_color=PANEL_2,
+            text_color=MUTED,
+            font=ctk.CTkFont(size=14, weight="bold"),
         )
-
-        boton.pack(
-            padx=15,
-            pady=4,
-            fill="x"
-        )
-
+        boton.pack(fill="x", padx=12, pady=3)
         return boton
 
-
-    def marcar_activo(self, boton_activo):
-
+    def marcar_activo(self, activo):
         if not hasattr(self, "botones_menu"):
             return
 
         for boton in self.botones_menu:
-            boton.configure(
-                fg_color="transparent"
-            )
+            boton.configure(fg_color="transparent", text_color=MUTED)
 
-        boton_activo.configure(
-            fg_color=("gray75", "gray25")
-        )
+        activo.configure(fg_color=PANEL_2, text_color=TEXT)
 
-
-    # ========================================================
-    # CONTENIDO PRINCIPAL
-    # ========================================================
-
-    def crear_contenido_principal(self):
-
+    def crear_main(self):
         self.main = ctk.CTkFrame(
             self,
             corner_radius=0,
-            fg_color=("gray94", "gray10")
+            fg_color=BG,
         )
+        self.main.grid(row=0, column=1, sticky="nsew")
 
-        self.main.grid(
-            row=0,
-            column=1,
-            sticky="nsew"
-        )
-
-        self.main.grid_columnconfigure(0, weight=1)
-        self.main.grid_rowconfigure(0, weight=1)
-
-
-    def limpiar_pantalla(self):
-
+    def limpiar(self):
         for widget in self.main.winfo_children():
             widget.destroy()
 
+    def nuevo_contenedor(self, scroll=True):
+        if scroll:
+            frame = ctk.CTkScrollableFrame(
+                self.main,
+                fg_color="transparent",
+                scrollbar_button_color="#3A4047",
+                scrollbar_button_hover_color="#505861",
+            )
+        else:
+            frame = ctk.CTkFrame(self.main, fg_color="transparent")
+
+        frame.pack(fill="both", expand=True, padx=34, pady=26)
+        return frame
 
     # ========================================================
-    # UTILIDADES VISUALES
+    # COMPONENTES
     # ========================================================
 
-    def crear_encabezado(
-        self,
-        padre,
-        titulo,
-        subtitulo
-    ):
-
+    def encabezado(self, padre, titulo, subtitulo):
         ctk.CTkLabel(
             padre,
             text=titulo,
-            font=ctk.CTkFont(
-                size=32,
-                weight="bold"
-            )
+            text_color=TEXT,
+            font=ctk.CTkFont(size=31, weight="bold"),
         ).pack(anchor="w")
 
         ctk.CTkLabel(
             padre,
             text=subtitulo,
-            text_color="gray65",
-            font=ctk.CTkFont(size=15)
-        ).pack(
-            anchor="w",
-            pady=(5, 25)
+            text_color=MUTED,
+            font=ctk.CTkFont(size=14),
+        ).pack(anchor="w", pady=(5, 17))
+
+    def panel(self, padre, titulo=None, subtitulo=None, pady=(0, 16)):
+        frame = ctk.CTkFrame(
+            padre,
+            fg_color=PANEL,
+            corner_radius=13,
+            border_width=1,
+            border_color=BORDER,
         )
+        frame.pack(fill="x", pady=pady)
 
+        if titulo:
+            ctk.CTkLabel(
+                frame,
+                text=titulo,
+                text_color=TEXT,
+                font=ctk.CTkFont(size=18, weight="bold"),
+            ).pack(anchor="w", padx=22, pady=(18, 2))
 
-    def crear_caja_secuencia(
-        self,
-        padre,
-        texto,
-        altura=150
-    ):
+        if subtitulo:
+            ctk.CTkLabel(
+                frame,
+                text=subtitulo,
+                text_color=MUTED,
+                justify="left",
+                wraplength=950,
+                font=ctk.CTkFont(size=12),
+            ).pack(anchor="w", padx=22, pady=(2, 12))
 
+        return frame
+
+    def secuencia_box(self, padre, texto, altura=130):
         caja = ctk.CTkTextbox(
             padre,
             height=altura,
-            font=("Courier", 13),
-            wrap="none"
+            font=(MONO, 12),
+            fg_color="#14171A",
+            text_color="#DDE2E7",
+            border_width=1,
+            border_color=BORDER,
+            corner_radius=9,
+            wrap="none",
         )
-
-        caja.pack(
-            fill="x",
-            padx=25,
-            pady=(5, 22)
-        )
-
-        caja.insert(
-            "1.0",
-            texto
-        )
-
-        caja.configure(
-            state="disabled"
-        )
-
+        caja.pack(fill="x", padx=22, pady=(3, 18))
+        caja.insert("1.0", texto)
+        caja.configure(state="disabled")
         return caja
 
+    def paso_actual(self, padre, etapa):
+        nombres = ["ADN", "Replicación", "Transcripción", "Traducción"]
+
+        barra = ctk.CTkFrame(
+            padre,
+            fg_color=PANEL,
+            corner_radius=11,
+            border_width=1,
+            border_color=BORDER,
+        )
+        barra.pack(fill="x", pady=(0, 18))
+
+        interior = ctk.CTkFrame(barra, fg_color="transparent")
+        interior.pack(pady=12)
+
+        for i, nombre in enumerate(nombres, start=1):
+            if i < etapa:
+                texto = f"✓  {nombre}"
+                color = SUCCESS
+            elif i == etapa:
+                texto = f"●  {nombre}"
+                color = ACCENT
+            else:
+                texto = f"○  {nombre}"
+                color = SUBTLE
+
+            ctk.CTkLabel(
+                interior,
+                text=texto,
+                text_color=color,
+                font=ctk.CTkFont(size=13, weight="bold"),
+            ).pack(side="left", padx=7)
+
+            if i < len(nombres):
+                ctk.CTkLabel(
+                    interior,
+                    text="›",
+                    text_color="#4E555D",
+                    font=ctk.CTkFont(size=18),
+                ).pack(side="left", padx=2)
+
+    def metrica(self, padre, columna, etiqueta, valor, detalle, color=TEXT):
+        tarjeta = ctk.CTkFrame(
+            padre,
+            fg_color=PANEL,
+            corner_radius=12,
+            border_width=1,
+            border_color=BORDER,
+        )
+        tarjeta.grid(row=0, column=columna, sticky="nsew", padx=5)
+
+        ctk.CTkLabel(
+            tarjeta,
+            text=etiqueta,
+            text_color=MUTED,
+            font=ctk.CTkFont(size=12),
+        ).pack(anchor="w", padx=18, pady=(15, 1))
+
+        ctk.CTkLabel(
+            tarjeta,
+            text=valor,
+            text_color=color,
+            font=ctk.CTkFont(size=23, weight="bold"),
+        ).pack(anchor="w", padx=18)
+
+        ctk.CTkLabel(
+            tarjeta,
+            text=detalle,
+            text_color=SUBTLE,
+            font=ctk.CTkFont(size=10),
+        ).pack(anchor="w", padx=18, pady=(3, 14))
+
+    def boton_siguiente(self, padre, texto, comando):
+        ctk.CTkButton(
+            padre,
+            text=texto,
+            command=comando,
+            height=43,
+            width=220,
+            corner_radius=9,
+            fg_color="#246DA8",
+            hover_color="#2F80C2",
+            font=ctk.CTkFont(size=13, weight="bold"),
+        ).pack(anchor="e", pady=(3, 20))
+
+    def formatear(self, secuencia, limite=78):
+        s = str(secuencia)
+        if len(s) <= limite:
+            return s
+        return s[:limite] + "…"
 
     # ========================================================
     # INICIO
     # ========================================================
 
     def mostrar_inicio(self):
+        self.marcar_activo(self.btn_inicio)
+        self.limpiar()
 
-        self.marcar_activo(self.boton_inicio)
-        self.limpiar_pantalla()
+        cont = self.nuevo_contenedor()
 
-        contenedor = ctk.CTkScrollableFrame(
-            self.main,
-            fg_color="transparent"
-        )
-
-        contenedor.pack(
-            fill="both",
-            expand=True,
-            padx=40,
-            pady=35
-        )
-
-        self.crear_encabezado(
-            contenedor,
+        self.encabezado(
+            cont,
             "Simulador del Dogma Central",
-            (
-                "Simulación interactiva de replicación, "
-                "transcripción y traducción mediante Biopython."
-            )
+            "Una visualización interactiva del flujo ADN → ARN → proteína.",
         )
 
-        # ----------------------------------------------------
-        # CARGA DEL ARCHIVO
-        # ----------------------------------------------------
-
-        carga = ctk.CTkFrame(
-            contenedor,
-            corner_radius=15
+        fuente = self.panel(
+            cont,
+            "Secuencia de entrada",
+            "Carga un archivo FASTA o GenBank, utiliza el ejemplo didáctico o introduce una secuencia manual.",
         )
 
-        carga.pack(
-            fill="x",
-            pady=(0, 30)
-        )
-
-        ctk.CTkLabel(
-            carga,
-            text="Secuencia de entrada",
-            font=ctk.CTkFont(
-                size=20,
-                weight="bold"
-            )
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(22, 5)
-        )
-
-        ctk.CTkLabel(
-            carga,
-            text=self.obtener_nombre_archivo(),
-            text_color="gray65",
-            font=ctk.CTkFont(size=14)
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(0, 15)
-        )
+        fila = ctk.CTkFrame(fuente, fg_color="transparent")
+        fila.pack(fill="x", padx=22, pady=(0, 12))
 
         ctk.CTkButton(
-            carga,
-            text="Cargar archivo FASTA / GenBank",
+            fila,
+            text="Cargar FASTA / GenBank",
             command=self.cargar_archivo,
-            height=42,
-            font=ctk.CTkFont(
-                size=14,
-                weight="bold"
-            )
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(0, 23)
-        )
+            height=40,
+            corner_radius=8,
+        ).pack(side="left", padx=(0, 9))
 
-        # ----------------------------------------------------
-        # SI HAY ADN
-        # ----------------------------------------------------
+        ctk.CTkButton(
+            fila,
+            text="Ejemplo corto",
+            command=self.cargar_ejemplo_corto,
+            height=40,
+            corner_radius=8,
+            fg_color=PANEL_2,
+            hover_color="#30363D",
+        ).pack(side="left")
+
+        estado = self.obtener_nombre_archivo()
+
+        ctk.CTkLabel(
+            fuente,
+            text=estado,
+            text_color=SUBTLE,
+            font=ctk.CTkFont(size=11),
+        ).pack(anchor="w", padx=22, pady=(0, 14))
+
+        self.entrada_manual = ctk.CTkEntry(
+            fuente,
+            placeholder_text="Secuencia manual, por ejemplo: ATGAAACCCGGGTTTTAA",
+            height=40,
+            font=(MONO, 12),
+            fg_color="#14171A",
+            border_color=BORDER,
+        )
+        self.entrada_manual.pack(fill="x", padx=22, pady=(0, 9))
+
+        ctk.CTkButton(
+            fuente,
+            text="Usar secuencia manual",
+            command=self.cargar_secuencia_manual,
+            height=38,
+            width=175,
+            corner_radius=8,
+            fg_color=PANEL_2,
+            hover_color="#30363D",
+        ).pack(anchor="w", padx=22, pady=(0, 18))
 
         if self.adn is not None:
+            metricas = ctk.CTkFrame(cont, fg_color="transparent")
+            metricas.pack(fill="x", pady=(4, 18))
 
-            self.mostrar_tarjetas_resumen(
-                contenedor
+            for i in range(3):
+                metricas.grid_columnconfigure(i, weight=1)
+
+            self.metrica(
+                metricas,
+                0,
+                "ADN",
+                f"{len(self.adn)} nt",
+                "Secuencia cargada",
+                DNA,
             )
 
-            # Flujo general
-            flujo = ctk.CTkFrame(
-                contenedor,
-                corner_radius=15
+            arn_valor = f"{len(self.arn_m)} nt" if self.transcripcion_realizada else "—"
+            prot_valor = (
+                f"{len(self.proteina)} aa"
+                if self.traduccion_realizada and self.inicio_traduccion is not None
+                else "—"
             )
 
-            flujo.pack(
-                fill="x",
-                pady=(25, 10)
-            )
+            self.metrica(metricas, 1, "ARNm", arn_valor, "Tras la transcripción", RNA)
+            self.metrica(metricas, 2, "Proteína", prot_valor, "Tras la traducción", PROTEIN)
 
+            resumen = self.panel(cont, "Flujo de trabajo")
             ctk.CTkLabel(
-                flujo,
-                text="Flujo de la información genética",
-                font=ctk.CTkFont(
-                    size=18,
-                    weight="bold"
-                )
-            ).pack(
-                anchor="w",
-                padx=25,
-                pady=(20, 12)
-            )
-
-            ctk.CTkLabel(
-                flujo,
-                text="ADN   →   ADN   →   ARNm   →   PROTEÍNA",
-                font=ctk.CTkFont(
-                    size=22,
-                    weight="bold"
-                )
-            ).pack(
-                anchor="w",
-                padx=25,
-                pady=(0, 20)
-            )
+                resumen,
+                text="ADN   →   replicación   →   ADN   →   transcripción   →   ARNm   →   traducción   →   proteína",
+                text_color=TEXT,
+                font=ctk.CTkFont(size=15, weight="bold"),
+            ).pack(anchor="w", padx=22, pady=(8, 18))
 
             ctk.CTkButton(
-                contenedor,
-                text="Comenzar simulación  →",
+                cont,
+                text="Comenzar simulación",
                 command=self.mostrar_adn,
-                height=48,
-                width=220,
-                font=ctk.CTkFont(
-                    size=15,
-                    weight="bold"
-                )
-            ).pack(
-                anchor="w",
-                pady=(20, 10)
-            )
-
+                height=43,
+                width=190,
+                corner_radius=9,
+                font=ctk.CTkFont(size=13, weight="bold"),
+            ).pack(anchor="w", pady=(0, 12))
 
     # ========================================================
-    # TARJETAS DE RESUMEN
-    # ========================================================
-
-    def mostrar_tarjetas_resumen(self, padre):
-
-        tarjetas = ctk.CTkFrame(
-            padre,
-            fg_color="transparent"
-        )
-
-        tarjetas.pack(
-            fill="x",
-            pady=10
-        )
-
-        for columna in range(3):
-            tarjetas.grid_columnconfigure(
-                columna,
-                weight=1
-            )
-
-        valor_adn = f"{len(self.adn)} nt"
-
-        if self.transcripcion_realizada:
-            valor_arn = f"{len(self.arn_m)} nt"
-        else:
-            valor_arn = "Pendiente"
-
-        if self.traduccion_realizada:
-            valor_proteina = f"{len(self.proteina)} aa"
-        else:
-            valor_proteina = "Pendiente"
-
-        self.crear_tarjeta(
-            tarjetas,
-            0,
-            "ADN",
-            valor_adn,
-            "Secuencia cargada"
-        )
-
-        self.crear_tarjeta(
-            tarjetas,
-            1,
-            "ARNm",
-            valor_arn,
-            (
-                "Completada"
-                if self.transcripcion_realizada
-                else "Transcripción"
-            )
-        )
-
-        self.crear_tarjeta(
-            tarjetas,
-            2,
-            "Proteína",
-            valor_proteina,
-            (
-                "Completada"
-                if self.traduccion_realizada
-                else "Traducción"
-            )
-        )
-
-
-    def crear_tarjeta(
-        self,
-        padre,
-        columna,
-        titulo,
-        valor,
-        descripcion
-    ):
-
-        tarjeta = ctk.CTkFrame(
-            padre,
-            corner_radius=14
-        )
-
-        tarjeta.grid(
-            row=0,
-            column=columna,
-            sticky="nsew",
-            padx=6
-        )
-
-        ctk.CTkLabel(
-            tarjeta,
-            text=titulo,
-            text_color="gray65",
-            font=ctk.CTkFont(size=14)
-        ).pack(
-            anchor="w",
-            padx=22,
-            pady=(18, 3)
-        )
-
-        ctk.CTkLabel(
-            tarjeta,
-            text=valor,
-            font=ctk.CTkFont(
-                size=25,
-                weight="bold"
-            )
-        ).pack(
-            anchor="w",
-            padx=22
-        )
-
-        ctk.CTkLabel(
-            tarjeta,
-            text=descripcion,
-            text_color="gray55",
-            font=ctk.CTkFont(size=12)
-        ).pack(
-            anchor="w",
-            padx=22,
-            pady=(4, 18)
-        )
-
-
-    # ========================================================
-    # CARGA DE ARCHIVO
+    # CARGA
     # ========================================================
 
     def cargar_archivo(self):
-
         ruta = filedialog.askopenfilename(
             title="Seleccionar secuencia",
             filetypes=[
-                (
-                    "Archivos de secuencia",
-                    "*.gb *.gbk *.genbank *.fasta *.fa *.fna"
-                ),
-                (
-                    "GenBank",
-                    "*.gb *.gbk *.genbank"
-                ),
-                (
-                    "FASTA",
-                    "*.fasta *.fa *.fna"
-                ),
-                (
-                    "Todos los archivos",
-                    "*.*"
-                )
-            ]
+                ("Secuencias", "*.gb *.gbk *.genbank *.fasta *.fa *.fna"),
+                ("GenBank", "*.gb *.gbk *.genbank"),
+                ("FASTA", "*.fasta *.fa *.fna"),
+                ("Todos los archivos", "*.*"),
+            ],
         )
 
         if not ruta:
             return
 
         try:
+            ext = Path(ruta).suffix.lower()
 
-            extension = Path(ruta).suffix.lower()
-
-            if extension in [
-                ".gb",
-                ".gbk",
-                ".genbank"
-            ]:
+            if ext in [".gb", ".gbk", ".genbank"]:
                 formato = "genbank"
-
-            elif extension in [
-                ".fasta",
-                ".fa",
-                ".fna"
-            ]:
+            elif ext in [".fasta", ".fa", ".fna"]:
                 formato = "fasta"
-
             else:
-                raise ValueError(
-                    "Formato de archivo no compatible."
-                )
+                raise ValueError("Formato no compatible.")
 
-            registro = SeqIO.read(
-                ruta,
-                formato
-            )
+            registro = SeqIO.read(ruta, formato)
 
             if len(registro.seq) == 0:
-                raise ValueError(
-                    "El archivo no contiene una secuencia."
-                )
+                raise ValueError("La secuencia está vacía.")
 
             self.registro = registro
             self.adn = registro.seq.upper()
             self.ruta_archivo = ruta
 
             self.reiniciar_resultados()
-
             self.mostrar_inicio()
 
-        except Exception as error:
+        except Exception as exc:
+            self.mostrar_error(f"No se pudo cargar la secuencia.\n\n{exc}")
 
-            self.mostrar_error(
-                f"No se pudo cargar el archivo.\n\n{error}"
-            )
+    def cargar_ejemplo_corto(self):
+        seq = Seq("ATGAAACCCGGGTTTTAA")
+        self.registro = SeqRecord(
+            seq,
+            id="EJEMPLO_CORTO",
+            description="Secuencia didáctica: inicio AUG y terminación UAA",
+        )
+        self.adn = seq
+        self.ruta_archivo = None
+        self.reiniciar_resultados()
+        self.mostrar_inicio()
 
+    def cargar_secuencia_manual(self):
+        texto = (
+            self.entrada_manual.get()
+            .upper()
+            .replace(" ", "")
+            .replace("\n", "")
+            .replace("\t", "")
+        )
+
+        if not texto:
+            self.mostrar_error("Introduce una secuencia de ADN.")
+            return
+
+        invalidos = set(texto) - set("ATCG")
+        if invalidos:
+            self.mostrar_error("La secuencia manual solo puede contener A, T, C y G.")
+            return
+
+        self.adn = Seq(texto)
+        self.registro = SeqRecord(
+            self.adn,
+            id="SECUENCIA_MANUAL",
+            description="Secuencia introducida manualmente",
+        )
+        self.ruta_archivo = None
+        self.reiniciar_resultados()
+        self.mostrar_inicio()
 
     def reiniciar_resultados(self):
-
         self.cadena_lider = None
         self.cadena_rezagada = None
         self.cebador_lider = None
         self.fragmentos_okazaki = []
+        self.replicacion_realizada = False
 
         self.arn_m = None
+        self.transcripcion_realizada = False
 
         self.proteina = None
+        self.inicio_traduccion = None
         self.codon_stop = None
-        self.posicion_stop = None
-
-        self.replicacion_realizada = False
-        self.transcripcion_realizada = False
+        self.posicion_stop_nt = None
+        self.posicion_stop_codon = None
+        self.codones_traducidos = []
         self.traduccion_realizada = False
-
 
     # ========================================================
     # ADN
     # ========================================================
 
     def mostrar_adn(self):
-
         if not self.comprobar_adn():
             return
 
-        self.marcar_activo(self.boton_adn)
-        self.limpiar_pantalla()
+        self.marcar_activo(self.btn_adn)
+        self.limpiar()
+        cont = self.nuevo_contenedor()
 
-        contenedor = ctk.CTkScrollableFrame(
-            self.main,
-            fg_color="transparent"
-        )
-
-        contenedor.pack(
-            fill="both",
-            expand=True,
-            padx=35,
-            pady=30
-        )
-
-        self.crear_encabezado(
-            contenedor,
+        self.encabezado(
+            cont,
             "Molécula de ADN",
-            "Información de la secuencia cargada mediante Biopython."
+            "Secuencia de partida y relación entre la hebra codificante y la hebra molde.",
         )
+        self.paso_actual(cont, 1)
 
-        # ----------------------------------------------------
-        # DATOS
-        # ----------------------------------------------------
-
-        informacion = ctk.CTkFrame(
-            contenedor,
-            corner_radius=15
-        )
-
-        informacion.pack(
-            fill="x",
-            pady=(0, 20)
-        )
-
-        texto_info = (
-            f"ID: {self.registro.id}\n\n"
-            f"Descripción: {self.registro.description}\n\n"
-            f"Longitud: {len(self.adn)} nucleótidos"
-        )
+        datos = self.panel(cont, "Información de la secuencia")
 
         ctk.CTkLabel(
-            informacion,
-            text=texto_info,
+            datos,
+            text=f"ID   {self.registro.id}",
+            text_color=TEXT,
+            font=ctk.CTkFont(size=13, weight="bold"),
+        ).pack(anchor="w", padx=22, pady=(9, 2))
+
+        ctk.CTkLabel(
+            datos,
+            text=f"{self.registro.description}",
+            text_color=MUTED,
+            wraplength=1000,
             justify="left",
-            anchor="w",
-            wraplength=950,
-            font=ctk.CTkFont(size=14)
-        ).pack(
-            fill="x",
-            padx=25,
-            pady=22
-        )
-
-        # ----------------------------------------------------
-        # DOBLE CADENA
-        # ----------------------------------------------------
-
-        doble = ctk.CTkFrame(
-            contenedor,
-            corner_radius=15
-        )
-
-        doble.pack(
-            fill="x",
-            pady=(0, 20)
-        )
+            font=ctk.CTkFont(size=12),
+        ).pack(anchor="w", padx=22, pady=(2, 4))
 
         ctk.CTkLabel(
-            doble,
-            text="Doble cadena de ADN",
-            font=ctk.CTkFont(
-                size=20,
-                weight="bold"
-            )
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(20, 5)
+            datos,
+            text=f"{len(self.adn)} nucleótidos",
+            text_color=DNA,
+            font=ctk.CTkFont(size=13, weight="bold"),
+        ).pack(anchor="w", padx=22, pady=(3, 18))
+
+        doble = self.panel(
+            cont,
+            "Doble cadena",
+            "Las hebras son complementarias y antiparalelas.",
         )
 
+        n = min(72, len(self.adn))
+        cod = str(self.adn[:n])
+        molde = str(self.adn[:n].complement())
+
+        texto = (
+            f"Cadena codificante   5'  {cod}  3'\n"
+            f"                         {'│' * len(cod)}\n"
+            f"Cadena molde         3'  {molde}  5'\n\n"
+            "Complementariedad: A ↔ T    ·    C ↔ G"
+        )
+        self.secuencia_box(doble, texto, 145)
+
+        nota = self.panel(
+            cont,
+            "Suposición del simulador",
+            "La secuencia cargada se interpreta como la hebra codificante escrita 5' → 3'.",
+        )
         ctk.CTkLabel(
-            doble,
-            text=(
-                "Las dos cadenas son complementarias "
-                "y antiparalelas."
-            ),
-            text_color="gray65",
-            font=ctk.CTkFont(size=14)
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(0, 15)
-        )
+            nota,
+            text="Esta convención permite obtener la hebra molde mediante complement() y el ARNm mediante transcribe().",
+            text_color=MUTED,
+            font=ctk.CTkFont(size=12),
+        ).pack(anchor="w", padx=22, pady=(2, 18))
 
-        longitud_visual = min(
-            90,
-            len(self.adn)
-        )
-
-        codificante = str(
-            self.adn[:longitud_visual]
-        )
-
-        molde = str(
-            self.adn[:longitud_visual].complement()
-        )
-
-        texto_adn = (
-            "Cadena codificante\n\n"
-            f"5'  {codificante}  3'\n"
-            f"    {'|' * len(codificante)}\n"
-            f"3'  {molde}  5'\n\n"
-            "Cadena molde"
-        )
-
-        self.crear_caja_secuencia(
-            doble,
-            texto_adn,
-            180
-        )
-
-        # ----------------------------------------------------
-        # SECUENCIA COMPLETA
-        # ----------------------------------------------------
-
-        secuencia = ctk.CTkFrame(
-            contenedor,
-            corner_radius=15
-        )
-
-        secuencia.pack(
-            fill="x",
-            pady=(0, 20)
-        )
-
-        ctk.CTkLabel(
-            secuencia,
-            text="Secuencia completa",
-            font=ctk.CTkFont(
-                size=18,
-                weight="bold"
-            )
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(18, 5)
-        )
-
-        self.crear_caja_secuencia(
-            secuencia,
-            str(self.adn),
-            120
-        )
-
-        ctk.CTkButton(
-            contenedor,
-            text="Continuar a replicación  →",
-            command=self.mostrar_replicacion,
-            height=45,
-            width=220
-        ).pack(
-            anchor="e",
-            pady=(5, 25)
-        )
-
-
-    # ========================================================
-    # CÁLCULO DE REPLICACIÓN
-    # ========================================================
-
-    def calcular_replicacion(
-        self,
-        tam_okazaki=500,
-        tam_cebador=10
-    ):
-
-        if self.replicacion_realizada:
-            return
-
-        # Cadena líder
-        self.cadena_lider = Seq(
-            str(self.adn)
-        )
-
-        self.cebador_lider = (
-            self.cadena_lider[:tam_cebador]
-            .transcribe()
-        )
-
-        # Fragmentos molde
-        fragmentos_molde = []
-
-        for inicio in range(
-            0,
-            len(self.adn),
-            tam_okazaki
-        ):
-
-            fragmentos_molde.append(
-                self.adn[
-                    inicio:
-                    inicio + tam_okazaki
-                ]
-            )
-
-        self.fragmentos_okazaki = []
-
-        # Se procesan desde el extremo opuesto
-        for molde in reversed(
-            fragmentos_molde
-        ):
-
-            fragmento_nuevo = (
-                molde.reverse_complement()
-            )
-
-            cebador = (
-                fragmento_nuevo[
-                    :tam_cebador
-                ]
-                .transcribe()
-            )
-
-            self.fragmentos_okazaki.append(
-                {
-                    "fragmento":
-                        fragmento_nuevo,
-
-                    "cebador":
-                        cebador
-                }
-            )
-
-        cadena_completa = "".join(
-            str(datos["fragmento"])
-            for datos
-            in self.fragmentos_okazaki
-        )
-
-        self.cadena_rezagada = Seq(
-            cadena_completa
-        )
-
-        self.replicacion_realizada = True
-
+        self.boton_siguiente(cont, "Continuar a replicación  →", self.mostrar_replicacion)
 
     # ========================================================
     # REPLICACIÓN
     # ========================================================
 
-    def mostrar_replicacion(self):
+    def calcular_replicacion(self, tam_okazaki=500, tam_cebador=10):
+        if self.replicacion_realizada:
+            return
 
+        self.cadena_lider = Seq(str(self.adn))
+
+        n_cebador = min(tam_cebador, len(self.adn))
+        self.cebador_lider = self.adn[:n_cebador].transcribe()
+
+        fragmentos_molde = [
+            self.adn[i:i + tam_okazaki]
+            for i in range(0, len(self.adn), tam_okazaki)
+        ]
+
+        self.fragmentos_okazaki = []
+
+        for molde in reversed(fragmentos_molde):
+            nuevo = molde.reverse_complement()
+            n = min(tam_cebador, len(nuevo))
+            cebador = nuevo[:n].transcribe()
+
+            self.fragmentos_okazaki.append(
+                {
+                    "fragmento": nuevo,
+                    "cebador": cebador,
+                }
+            )
+
+        self.cadena_rezagada = self.adn.reverse_complement()
+        self.replicacion_realizada = True
+
+    def mostrar_replicacion(self):
         if not self.comprobar_adn():
             return
 
         self.calcular_replicacion()
+        self.marcar_activo(self.btn_rep)
+        self.limpiar()
+        cont = self.nuevo_contenedor()
 
-        self.marcar_activo(
-            self.boton_replicacion
-        )
-
-        self.limpiar_pantalla()
-
-        contenedor = ctk.CTkScrollableFrame(
-            self.main,
-            fg_color="transparent"
-        )
-
-        contenedor.pack(
-            fill="both",
-            expand=True,
-            padx=35,
-            pady=30
-        )
-
-        self.crear_encabezado(
-            contenedor,
+        self.encabezado(
+            cont,
             "Replicación del ADN",
-            "ADN → ADN · Replicación semiconservativa"
+            "Síntesis de dos moléculas hijas mediante replicación semiconservativa.",
         )
+        self.paso_actual(cont, 2)
 
-        # ----------------------------------------------------
-        # ESQUEMA SUPERIOR
-        # ----------------------------------------------------
+        metricas = ctk.CTkFrame(cont, fg_color="transparent")
+        metricas.pack(fill="x", pady=(0, 16))
+        for i in range(3):
+            metricas.grid_columnconfigure(i, weight=1)
 
-        proceso = ctk.CTkFrame(
-            contenedor,
-            corner_radius=15
+        self.metrica(metricas, 0, "Hebra líder", "Continua", "Síntesis 5' → 3'", SUCCESS)
+        self.metrica(
+            metricas,
+            1,
+            "Hebra rezagada",
+            f"{len(self.fragmentos_okazaki)} fragmentos",
+            "Fragmentos de Okazaki",
+            WARNING,
         )
+        self.metrica(metricas, 2, "Resultado", "2 moléculas", "Replicación semiconservativa", DNA)
 
-        proceso.pack(
-            fill="x",
-            pady=(0, 20)
+        tabs = ctk.CTkTabview(
+            cont,
+            fg_color=PANEL,
+            segmented_button_fg_color=PANEL_2,
+            segmented_button_selected_color="#246DA8",
+            segmented_button_selected_hover_color="#2F80C2",
+            border_width=1,
+            border_color=BORDER,
+            corner_radius=13,
         )
+        tabs.pack(fill="x", pady=(0, 16))
+
+        for nombre in ["Esquema", "Secuencias", "Okazaki", "Enzimas"]:
+            tabs.add(nombre)
+
+        self._tab_replicacion_esquema(tabs.tab("Esquema"))
+        self._tab_replicacion_secuencias(tabs.tab("Secuencias"))
+        self._tab_replicacion_okazaki(tabs.tab("Okazaki"))
+        self._tab_replicacion_enzimas(tabs.tab("Enzimas"))
+
+        resultado = self.panel(cont, "Resultado de la replicación")
+
+        hijas = ctk.CTkFrame(resultado, fg_color="transparent")
+        hijas.pack(fill="x", padx=22, pady=(7, 18))
+        hijas.grid_columnconfigure(0, weight=1)
+        hijas.grid_columnconfigure(1, weight=1)
+
+        self._molecula_hija(hijas, 0, "Molécula hija 1", "parental", "nueva")
+        self._molecula_hija(hijas, 1, "Molécula hija 2", "nueva", "parental")
 
         ctk.CTkLabel(
-            proceso,
-            text=(
-                "HELICASA   →   PRIMASA   →   "
-                "ADN POLIMERASA   →   LIGASA"
-            ),
-            font=ctk.CTkFont(
-                size=17,
-                weight="bold"
-            )
-        ).pack(
-            padx=25,
-            pady=22
-        )
-
-        # ----------------------------------------------------
-        # HELICASA
-        # ----------------------------------------------------
-
-        tarjeta = ctk.CTkFrame(
-            contenedor,
-            corner_radius=15
-        )
-
-        tarjeta.pack(
-            fill="x",
-            pady=(0, 18)
-        )
+            resultado,
+            text="Cada molécula hija contiene una hebra parental y una hebra de nueva síntesis.",
+            text_color=MUTED,
+            font=ctk.CTkFont(size=12),
+        ).pack(anchor="w", padx=22, pady=(0, 7))
 
         ctk.CTkLabel(
-            tarjeta,
-            text="1. Apertura de la doble hélice",
-            font=ctk.CTkFont(
-                size=20,
-                weight="bold"
-            )
-        ).pack(
+            resultado,
+            text="Nota: se usan fragmentos de 500 nt como simplificación didáctica para visualizar la cadena rezagada.",
+            text_color=SUBTLE,
+            font=ctk.CTkFont(size=10),
+        ).pack(anchor="w", padx=22, pady=(0, 18))
+
+        self.boton_siguiente(cont, "Continuar a transcripción  →", self.mostrar_transcripcion)
+
+    def _tab_replicacion_esquema(self, tab):
+        canvas = tk.Canvas(
+            tab,
+            height=260,
+            bg=PANEL,
+            highlightthickness=0,
+        )
+        canvas.pack(fill="x", padx=18, pady=16)
+        canvas.bind("<Configure>", lambda e: self._dibujar_rep_compacto(canvas, e.width))
+
+    def _dibujar_rep_compacto(self, canvas, ancho):
+        canvas.delete("all")
+        ancho = max(ancho, 760)
+
+        x0 = 40
+        xf = ancho - 40
+        xfork = int(ancho * 0.43)
+
+        y1 = 95
+        y2 = 155
+
+        # ADN parental
+        canvas.create_line(x0, y1, xfork, y1, fill=DNA, width=4)
+        canvas.create_line(x0, y2, xfork, y2, fill=DNA, width=4)
+
+        for x in range(x0 + 14, xfork - 8, 24):
+            canvas.create_line(x, y1 + 6, x, y2 - 6, fill="#38404A", width=1)
+
+        # Horquilla parental abierta
+        canvas.create_line(xfork, y1, xf, 45, fill=DNA, width=4)
+        canvas.create_line(xfork, y2, xf, 205, fill=DNA, width=4)
+
+        # Nueva líder
+        canvas.create_line(
+            xfork + 16,
+            y2 + 4,
+            xf - 25,
+            199,
+            fill=SUCCESS,
+            width=5,
+            arrow=tk.LAST,
+        )
+
+        # Okazaki, discretos
+        tramos = [
+            (xf - 65, 54, xf - 180, 69),
+            (xf - 215, 76, xf - 330, 91),
+            (xf - 365, 98, xfork + 35, 112),
+        ]
+        for x1, yy1, x2, yy2 in tramos:
+            if x2 > xfork:
+                canvas.create_line(
+                    x1, yy1, x2, yy2,
+                    fill=WARNING,
+                    width=5,
+                    arrow=tk.LAST,
+                )
+
+        # Helicasa minimal
+        canvas.create_oval(
+            xfork - 22,
+            103,
+            xfork + 22,
+            147,
+            fill="#8B72D8",
+            outline="",
+        )
+        canvas.create_text(
+            xfork,
+            125,
+            text="H",
+            fill=TEXT,
+            font=("Arial", 12, "bold"),
+        )
+
+        canvas.create_text(
+            xfork,
+            168,
+            text="helicasa",
+            fill=MUTED,
+            font=("Arial", 9),
+        )
+
+        # Etiquetas
+        canvas.create_text(
+            int(ancho * 0.72),
+            25,
+            text="Cadena rezagada · síntesis discontinua",
+            fill=WARNING,
+            font=("Arial", 11, "bold"),
+        )
+        canvas.create_text(
+            int(ancho * 0.72),
+            228,
+            text="Cadena líder · síntesis continua 5' → 3'",
+            fill=SUCCESS,
+            font=("Arial", 11, "bold"),
+        )
+        canvas.create_text(
+            x0,
+            73,
+            text="5'",
+            fill=MUTED,
             anchor="w",
-            padx=25,
-            pady=(20, 5)
+            font=("Arial", 10),
         )
-
-        ctk.CTkLabel(
-            tarjeta,
-            text=(
-                "La helicasa separa las dos cadenas "
-                "rompiendo los puentes de hidrógeno."
-            ),
-            text_color="gray70",
-            font=ctk.CTkFont(size=14)
-        ).pack(
+        canvas.create_text(
+            x0,
+            176,
+            text="3'",
+            fill=MUTED,
             anchor="w",
-            padx=25,
-            pady=(0, 15)
+            font=("Arial", 10),
         )
 
-        longitud = min(
-            70,
-            len(self.adn)
+        canvas.create_text(
+            x0,
+            238,
+            text="Azul: hebra parental     Verde: nueva hebra     Amarillo: fragmentos de Okazaki",
+            fill=SUBTLE,
+            anchor="w",
+            font=("Arial", 9),
         )
 
-        superior = str(
-            self.adn[:longitud]
-        )
-
-        inferior = str(
-            self.adn[
-                :longitud
-            ].complement()
-        )
+    def _tab_replicacion_secuencias(self, tab):
+        n = min(68, len(self.adn))
+        molde_lider = self.adn[:n].complement()
 
         texto = (
-            "ADN original:\n\n"
-            f"5'  {superior}  3'\n"
-            f"    {'|' * len(superior)}\n"
-            f"3'  {inferior}  5'\n\n"
-            "                         ↓ HELICASA ↓\n\n"
-            f"5'  {superior}  3'\n\n"
-            f"3'  {inferior}  5'"
+            f"Hebra molde líder     3'  {molde_lider}  5'\n"
+            f"Nueva hebra líder     5'  {self.cadena_lider[:n]}  3'\n\n"
+            f"Cebador ARN           5'  {self.cebador_lider}  3'\n\n"
+            f"Cadena rezagada final 5'  {self.cadena_rezagada[:n]}  3'"
         )
 
-        self.crear_caja_secuencia(
-            tarjeta,
-            texto,
-            210
+        caja = ctk.CTkTextbox(
+            tab,
+            height=210,
+            font=(MONO, 12),
+            fg_color="#14171A",
+            text_color="#DDE2E7",
+            border_width=1,
+            border_color=BORDER,
+            corner_radius=9,
+            wrap="none",
         )
+        caja.pack(fill="x", padx=18, pady=18)
+        caja.insert("1.0", texto)
+        caja.configure(state="disabled")
 
-        # ----------------------------------------------------
-        # PRIMASA
-        # ----------------------------------------------------
+    def _tab_replicacion_okazaki(self, tab):
+        lineas = []
 
-        tarjeta = ctk.CTkFrame(
-            contenedor,
-            corner_radius=15
-        )
-
-        tarjeta.pack(
-            fill="x",
-            pady=(0, 18)
-        )
-
-        ctk.CTkLabel(
-            tarjeta,
-            text="2. Primasa y cebador de ARN",
-            font=ctk.CTkFont(
-                size=20,
-                weight="bold"
-            )
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(20, 5)
-        )
-
-        ctk.CTkLabel(
-            tarjeta,
-            text=(
-                "La primasa coloca un cebador de ARN "
-                "que permite iniciar la síntesis."
-            ),
-            text_color="gray70",
-            font=ctk.CTkFont(size=14)
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(0, 12)
-        )
-
-        ctk.CTkLabel(
-            tarjeta,
-            text=(
-                f"Cebador ARN:   "
-                f"5' {self.cebador_lider} 3'"
-            ),
-            font=("Courier", 16)
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(5, 22)
-        )
-
-        # ----------------------------------------------------
-        # CADENA LÍDER
-        # ----------------------------------------------------
-
-        tarjeta = ctk.CTkFrame(
-            contenedor,
-            corner_radius=15
-        )
-
-        tarjeta.pack(
-            fill="x",
-            pady=(0, 18)
-        )
-
-        ctk.CTkLabel(
-            tarjeta,
-            text="3. Cadena líder",
-            font=ctk.CTkFont(
-                size=20,
-                weight="bold"
-            )
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(20, 5)
-        )
-
-        ctk.CTkLabel(
-            tarjeta,
-            text=(
-                "La ADN polimerasa sintetiza la cadena "
-                "líder de forma continua en dirección 5' → 3'."
-            ),
-            text_color="gray70",
-            font=ctk.CTkFont(size=14)
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(0, 15)
-        )
-
-        texto_lider = (
-            "Cadena molde:\n"
-            f"3'  {inferior}  5'\n\n"
-            "                     ADN polimerasa  →\n\n"
-            "Nueva cadena líder:\n"
-            f"5'  {str(self.cadena_lider[:longitud])}  3'"
-        )
-
-        self.crear_caja_secuencia(
-            tarjeta,
-            texto_lider,
-            170
-        )
-
-        # ----------------------------------------------------
-        # CADENA REZAGADA
-        # ----------------------------------------------------
-
-        tarjeta = ctk.CTkFrame(
-            contenedor,
-            corner_radius=15
-        )
-
-        tarjeta.pack(
-            fill="x",
-            pady=(0, 18)
-        )
-
-        ctk.CTkLabel(
-            tarjeta,
-            text="4. Cadena rezagada",
-            font=ctk.CTkFont(
-                size=20,
-                weight="bold"
-            )
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(20, 5)
-        )
-
-        ctk.CTkLabel(
-            tarjeta,
-            text=(
-                "La ADN polimerasa solo sintetiza en "
-                "dirección 5' → 3'. Por ello, la cadena "
-                "rezagada se forma mediante fragmentos "
-                "de Okazaki."
-            ),
-            text_color="gray70",
-            justify="left",
-            wraplength=950,
-            font=ctk.CTkFont(size=14)
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(0, 15)
-        )
-
-        # Contenedor de fragmentos
-        fragmentos_frame = ctk.CTkFrame(
-            tarjeta,
-            fg_color="transparent"
-        )
-
-        fragmentos_frame.pack(
-            fill="x",
-            padx=20,
-            pady=(0, 18)
-        )
-
-        fragmentos_frame.grid_columnconfigure(
-            0,
-            weight=1
-        )
-
-        fragmentos_frame.grid_columnconfigure(
-            1,
-            weight=1
-        )
-
-        for numero, datos in enumerate(
-            self.fragmentos_okazaki,
-            start=1
-        ):
-
-            fila = (
-                (numero - 1) // 2
+        for i, datos in enumerate(self.fragmentos_okazaki, start=1):
+            frag = datos["fragmento"]
+            ceb = datos["cebador"]
+            lineas.append(
+                f"{i:>2}. {len(frag):>4} nt   cebador 5' {ceb} 3'   "
+                f"ADN 5' {self.formatear(frag, 42)} 3'"
             )
 
-            columna = (
-                (numero - 1) % 2
+        texto = (
+            "Fragmentos simulados de la cadena rezagada\n"
+            "──────────────────────────────────────────\n"
+            + "\n".join(lineas)
+        )
+
+        caja = ctk.CTkTextbox(
+            tab,
+            height=250,
+            font=(MONO, 11),
+            fg_color="#14171A",
+            text_color="#DDE2E7",
+            border_width=1,
+            border_color=BORDER,
+            corner_radius=9,
+            wrap="none",
+        )
+        caja.pack(fill="x", padx=18, pady=18)
+        caja.insert("1.0", texto)
+        caja.configure(state="disabled")
+
+    def _tab_replicacion_enzimas(self, tab):
+        elementos = [
+            ("Helicasa", "Separa las dos hebras de ADN."),
+            ("Proteínas SSB", "Estabilizan las hebras abiertas."),
+            ("Primasa", "Sintetiza cebadores de ARN."),
+            ("ADN polimerasa III", "Elonga las nuevas hebras 5' → 3' en E. coli."),
+            ("ADN polimerasa I", "Reemplaza los cebadores de ARN por ADN en E. coli."),
+            ("Ligasa", "Sella los fragmentos de Okazaki."),
+        ]
+
+        grid = ctk.CTkFrame(tab, fg_color="transparent")
+        grid.pack(fill="x", padx=14, pady=14)
+
+        for col in range(2):
+            grid.grid_columnconfigure(col, weight=1)
+
+        for i, (nombre, desc) in enumerate(elementos):
+            card = ctk.CTkFrame(
+                grid,
+                fg_color=PANEL_2,
+                corner_radius=9,
+                border_width=1,
+                border_color=BORDER,
             )
-
-            fragmento = datos[
-                "fragmento"
-            ]
-
-            cebador = datos[
-                "cebador"
-            ]
-
-            caja = ctk.CTkFrame(
-                fragmentos_frame,
-                corner_radius=10,
-                fg_color=(
-                    "gray85",
-                    "gray20"
-                )
-            )
-
-            caja.grid(
-                row=fila,
-                column=columna,
-                sticky="nsew",
-                padx=6,
-                pady=6
-            )
+            card.grid(row=i // 2, column=i % 2, sticky="nsew", padx=5, pady=5)
 
             ctk.CTkLabel(
-                caja,
-                text=(
-                    f"Fragmento de Okazaki "
-                    f"{numero}"
-                ),
-                font=ctk.CTkFont(
-                    size=14,
-                    weight="bold"
-                )
-            ).pack(
-                anchor="w",
-                padx=16,
-                pady=(12, 3)
-            )
+                card,
+                text=nombre,
+                text_color=TEXT,
+                font=ctk.CTkFont(size=13, weight="bold"),
+            ).pack(anchor="w", padx=14, pady=(11, 2))
 
             ctk.CTkLabel(
-                caja,
-                text=f"Cebador: {cebador}",
-                text_color="gray65",
-                font=("Courier", 11)
-            ).pack(
-                anchor="w",
-                padx=16
-            )
+                card,
+                text=desc,
+                text_color=MUTED,
+                justify="left",
+                wraplength=380,
+                font=ctk.CTkFont(size=11),
+            ).pack(anchor="w", padx=14, pady=(2, 11))
 
-            ctk.CTkLabel(
-                caja,
-                text=(
-                    f"5' "
-                    f"{str(fragmento[:35])}"
-                    f"... 3'"
-                ),
-                font=("Courier", 11)
-            ).pack(
-                anchor="w",
-                padx=16,
-                pady=(3, 2)
-            )
-
-            ctk.CTkLabel(
-                caja,
-                text=(
-                    f"{len(fragmento)} "
-                    f"nucleótidos"
-                ),
-                text_color="gray55",
-                font=ctk.CTkFont(
-                    size=11
-                )
-            ).pack(
-                anchor="w",
-                padx=16,
-                pady=(0, 12)
-            )
-
-        # ----------------------------------------------------
-        # LIGASA
-        # ----------------------------------------------------
-
-        tarjeta = ctk.CTkFrame(
-            contenedor,
-            corner_radius=15
+    def _molecula_hija(self, padre, columna, titulo, superior_tipo, inferior_tipo):
+        frame = ctk.CTkFrame(
+            padre,
+            fg_color=PANEL_2,
+            corner_radius=9,
+            border_width=1,
+            border_color=BORDER,
         )
-
-        tarjeta.pack(
-            fill="x",
-            pady=(0, 18)
-        )
+        frame.grid(row=0, column=columna, sticky="nsew", padx=5)
 
         ctk.CTkLabel(
-            tarjeta,
-            text="5. ADN ligasa",
-            font=ctk.CTkFont(
-                size=20,
-                weight="bold"
-            )
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(20, 5)
-        )
+            frame,
+            text=titulo,
+            text_color=TEXT,
+            font=ctk.CTkFont(size=13, weight="bold"),
+        ).pack(anchor="w", padx=14, pady=(12, 7))
+
+        color_sup = DNA if superior_tipo == "parental" else SUCCESS
+        color_inf = DNA if inferior_tipo == "parental" else SUCCESS
 
         ctk.CTkLabel(
-            tarjeta,
-            text=(
-                "La ADN ligasa une los fragmentos "
-                "de Okazaki formando una cadena continua."
-            ),
-            text_color="gray70",
-            font=ctk.CTkFont(size=14)
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(0, 12)
-        )
-
-        texto_ligasa = (
-            "Cadena rezagada final:\n\n"
-            f"5' "
-            f"{str(self.cadena_rezagada[:80])}"
-            f"... 3'"
-        )
-
-        self.crear_caja_secuencia(
-            tarjeta,
-            texto_ligasa,
-            110
-        )
-
-        # ----------------------------------------------------
-        # RESULTADO
-        # ----------------------------------------------------
-
-        resultado = ctk.CTkFrame(
-            contenedor,
-            corner_radius=15,
-            border_width=1
-        )
-
-        resultado.pack(
-            fill="x",
-            pady=(0, 20)
-        )
+            frame,
+            text=f"● Hebra {superior_tipo}",
+            text_color=color_sup,
+            font=ctk.CTkFont(size=11, weight="bold"),
+        ).pack(anchor="w", padx=14)
 
         ctk.CTkLabel(
-            resultado,
-            text="✓ Replicación completada",
-            font=ctk.CTkFont(
-                size=20,
-                weight="bold"
-            )
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(20, 5)
-        )
+            frame,
+            text=f"5' {self.formatear(self.adn, 42)} 3'",
+            text_color=MUTED,
+            font=(MONO, 9),
+        ).pack(anchor="w", padx=14, pady=(2, 7))
 
         ctk.CTkLabel(
-            resultado,
-            text=(
-                "La replicación es semiconservativa: "
-                "cada molécula hija conserva una cadena "
-                "original y contiene una cadena nueva."
-            ),
-            wraplength=950,
-            justify="left",
-            text_color="gray70",
-            font=ctk.CTkFont(size=14)
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(0, 20)
-        )
+            frame,
+            text=f"● Hebra {inferior_tipo}",
+            text_color=color_inf,
+            font=ctk.CTkFont(size=11, weight="bold"),
+        ).pack(anchor="w", padx=14)
 
-        ctk.CTkButton(
-            contenedor,
-            text="Continuar a transcripción  →",
-            command=self.mostrar_transcripcion,
-            height=45,
-            width=230
-        ).pack(
-            anchor="e",
-            pady=(5, 25)
-        )
-
+        ctk.CTkLabel(
+            frame,
+            text=f"3' {self.formatear(self.adn.complement(), 42)} 5'",
+            text_color=MUTED,
+            font=(MONO, 9),
+        ).pack(anchor="w", padx=14, pady=(2, 12))
 
     # ========================================================
     # TRANSCRIPCIÓN
     # ========================================================
 
     def calcular_transcripcion(self):
-
         if self.transcripcion_realizada:
             return
 
         self.arn_m = self.adn.transcribe()
-
         self.transcripcion_realizada = True
 
-
     def mostrar_transcripcion(self):
-
         if not self.comprobar_adn():
             return
 
         self.calcular_transcripcion()
+        self.marcar_activo(self.btn_trans)
+        self.limpiar()
+        cont = self.nuevo_contenedor()
 
-        self.marcar_activo(
-            self.boton_transcripcion
-        )
-
-        self.limpiar_pantalla()
-
-        contenedor = ctk.CTkScrollableFrame(
-            self.main,
-            fg_color="transparent"
-        )
-
-        contenedor.pack(
-            fill="both",
-            expand=True,
-            padx=35,
-            pady=30
-        )
-
-        self.crear_encabezado(
-            contenedor,
+        self.encabezado(
+            cont,
             "Transcripción",
-            "ADN → ARNm · Síntesis de ARN mensajero"
+            "La ARN polimerasa utiliza la hebra molde para sintetizar ARN mensajero.",
+        )
+        self.paso_actual(cont, 3)
+
+        metricas = ctk.CTkFrame(cont, fg_color="transparent")
+        metricas.pack(fill="x", pady=(0, 16))
+        for i in range(3):
+            metricas.grid_columnconfigure(i, weight=1)
+
+        self.metrica(metricas, 0, "Entrada", f"{len(self.adn)} nt", "ADN codificante", DNA)
+        self.metrica(metricas, 1, "Enzima", "ARN polimerasa", "Lee la hebra molde", TEXT)
+        self.metrica(metricas, 2, "Salida", f"{len(self.arn_m)} nt", "ARN mensajero", RNA)
+
+        tabs = ctk.CTkTabview(
+            cont,
+            fg_color=PANEL,
+            segmented_button_fg_color=PANEL_2,
+            segmented_button_selected_color="#246DA8",
+            segmented_button_selected_hover_color="#2F80C2",
+            border_width=1,
+            border_color=BORDER,
+            corner_radius=13,
+        )
+        tabs.pack(fill="x", pady=(0, 16))
+
+        for nombre in ["Esquema", "Secuencias", "Reglas"]:
+            tabs.add(nombre)
+
+        self._tab_trans_esquema(tabs.tab("Esquema"))
+        self._tab_trans_secuencias(tabs.tab("Secuencias"))
+        self._tab_trans_reglas(tabs.tab("Reglas"))
+
+        self.boton_siguiente(cont, "Continuar a traducción  →", self.mostrar_traduccion)
+
+    def _tab_trans_esquema(self, tab):
+        canvas = tk.Canvas(
+            tab,
+            height=230,
+            bg=PANEL,
+            highlightthickness=0,
+        )
+        canvas.pack(fill="x", padx=18, pady=16)
+        canvas.bind("<Configure>", lambda e: self._dibujar_trans_compacto(canvas, e.width))
+
+    def _dibujar_trans_compacto(self, canvas, ancho):
+        canvas.delete("all")
+        ancho = max(ancho, 760)
+
+        y = 105
+        x1 = int(ancho * 0.18)
+        x2 = int(ancho * 0.50)
+        x3 = int(ancho * 0.82)
+
+        # Cajas
+        self._canvas_box(canvas, x1, y, 180, 70, "ADN molde", "3' → 5'", DNA)
+        self._canvas_box(canvas, x2, y, 210, 70, "ARN polimerasa", "síntesis", "#8B72D8")
+        self._canvas_box(canvas, x3, y, 180, 70, "ARNm", "5' → 3'", RNA)
+
+        canvas.create_line(x1 + 105, y, x2 - 120, y, fill="#56606A", width=2, arrow=tk.LAST)
+        canvas.create_line(x2 + 120, y, x3 - 105, y, fill="#56606A", width=2, arrow=tk.LAST)
+
+        canvas.create_text(
+            ancho // 2,
+            188,
+            text="La secuencia del ARNm coincide con la hebra codificante salvo que U sustituye a T.",
+            fill=MUTED,
+            font=("Arial", 10),
         )
 
-        # ----------------------------------------------------
-        # FLUJO
-        # ----------------------------------------------------
-
-        flujo = ctk.CTkFrame(
-            contenedor,
-            corner_radius=15
+    def _canvas_box(self, canvas, x, y, w, h, titulo, sub, color):
+        canvas.create_rectangle(
+            x - w // 2,
+            y - h // 2,
+            x + w // 2,
+            y + h // 2,
+            fill="#20252A",
+            outline=color,
+            width=2,
+        )
+        canvas.create_text(
+            x,
+            y - 8,
+            text=titulo,
+            fill=TEXT,
+            font=("Arial", 12, "bold"),
+        )
+        canvas.create_text(
+            x,
+            y + 14,
+            text=sub,
+            fill=color,
+            font=("Arial", 9),
         )
 
-        flujo.pack(
-            fill="x",
-            pady=(0, 20)
+    def _tab_trans_secuencias(self, tab):
+        n = min(72, len(self.adn))
+
+        texto = (
+            f"Codificante   5'  {self.adn[:n]}  3'\n"
+            f"Molde         3'  {self.adn[:n].complement()}  5'\n"
+            f"                  {'│' * n}\n"
+            f"ARNm          5'  {self.arn_m[:n]}  3'\n\n"
+            f"Longitud del ARNm: {len(self.arn_m)} nucleótidos"
         )
 
-        ctk.CTkLabel(
-            flujo,
-            text=(
-                "ADN MOLDE   →   ARN POLIMERASA   →   ARNm"
-            ),
-            font=ctk.CTkFont(
-                size=20,
-                weight="bold"
+        caja = ctk.CTkTextbox(
+            tab,
+            height=210,
+            font=(MONO, 12),
+            fg_color="#14171A",
+            text_color="#DDE2E7",
+            border_width=1,
+            border_color=BORDER,
+            corner_radius=9,
+            wrap="none",
+        )
+        caja.pack(fill="x", padx=18, pady=18)
+        caja.insert("1.0", texto)
+        caja.configure(state="disabled")
+
+    def _tab_trans_reglas(self, tab):
+        cards = ctk.CTkFrame(tab, fg_color="transparent")
+        cards.pack(fill="x", padx=14, pady=14)
+        cards.grid_columnconfigure(0, weight=1)
+        cards.grid_columnconfigure(1, weight=1)
+
+        datos = [
+            ("Dirección de lectura", "La ARN polimerasa lee la hebra molde 3' → 5'."),
+            ("Dirección de síntesis", "El ARNm se sintetiza 5' → 3'."),
+            ("Complementariedad", "A ↔ U y C ↔ G durante la formación del ARN."),
+            ("Diferencia ADN / ARN", "El ARN contiene uracilo (U) en lugar de timina (T)."),
+        ]
+
+        for i, (t, d) in enumerate(datos):
+            card = ctk.CTkFrame(
+                cards,
+                fg_color=PANEL_2,
+                corner_radius=9,
+                border_width=1,
+                border_color=BORDER,
             )
-        ).pack(
-            pady=25
-        )
+            card.grid(row=i // 2, column=i % 2, sticky="nsew", padx=5, pady=5)
 
-        # ----------------------------------------------------
-        # ADN
-        # ----------------------------------------------------
+            ctk.CTkLabel(
+                card,
+                text=t,
+                text_color=TEXT,
+                font=ctk.CTkFont(size=13, weight="bold"),
+            ).pack(anchor="w", padx=14, pady=(11, 2))
 
-        tarjeta = ctk.CTkFrame(
-            contenedor,
-            corner_radius=15
-        )
-
-        tarjeta.pack(
-            fill="x",
-            pady=(0, 18)
-        )
-
-        ctk.CTkLabel(
-            tarjeta,
-            text="1. Selección de la cadena molde",
-            font=ctk.CTkFont(
-                size=20,
-                weight="bold"
-            )
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(20, 5)
-        )
-
-        ctk.CTkLabel(
-            tarjeta,
-            text=(
-                "La ARN polimerasa utiliza una de las "
-                "cadenas de ADN como molde."
-            ),
-            text_color="gray70",
-            font=ctk.CTkFont(size=14)
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(0, 15)
-        )
-
-        longitud = min(
-            80,
-            len(self.adn)
-        )
-
-        codificante = str(
-            self.adn[:longitud]
-        )
-
-        molde = str(
-            self.adn[
-                :longitud
-            ].complement()
-        )
-
-        texto_adn = (
-            "Cadena codificante:\n"
-            f"5'  {codificante}  3'\n\n"
-            "Cadena molde:\n"
-            f"3'  {molde}  5'"
-        )
-
-        self.crear_caja_secuencia(
-            tarjeta,
-            texto_adn,
-            135
-        )
-
-        # ----------------------------------------------------
-        # ARN POLIMERASA
-        # ----------------------------------------------------
-
-        tarjeta = ctk.CTkFrame(
-            contenedor,
-            corner_radius=15
-        )
-
-        tarjeta.pack(
-            fill="x",
-            pady=(0, 18)
-        )
-
-        ctk.CTkLabel(
-            tarjeta,
-            text="2. ARN polimerasa",
-            font=ctk.CTkFont(
-                size=20,
-                weight="bold"
-            )
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(20, 5)
-        )
-
-        ctk.CTkLabel(
-            tarjeta,
-            text=(
-                "La ARN polimerasa lee la cadena molde "
-                "y sintetiza una molécula complementaria "
-                "de ARN mensajero."
-            ),
-            text_color="gray70",
-            wraplength=950,
-            justify="left",
-            font=ctk.CTkFont(size=14)
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(0, 15)
-        )
-
-        ctk.CTkLabel(
-            tarjeta,
-            text="T  →  U",
-            font=ctk.CTkFont(
-                size=28,
-                weight="bold"
-            )
-        ).pack(
-            pady=(5, 20)
-        )
-
-        # ----------------------------------------------------
-        # ARNm
-        # ----------------------------------------------------
-
-        tarjeta = ctk.CTkFrame(
-            contenedor,
-            corner_radius=15
-        )
-
-        tarjeta.pack(
-            fill="x",
-            pady=(0, 18)
-        )
-
-        ctk.CTkLabel(
-            tarjeta,
-            text="3. ARN mensajero",
-            font=ctk.CTkFont(
-                size=20,
-                weight="bold"
-            )
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(20, 5)
-        )
-
-        ctk.CTkLabel(
-            tarjeta,
-            text=(
-                f"Longitud: "
-                f"{len(self.arn_m)} nucleótidos"
-            ),
-            text_color="gray65",
-            font=ctk.CTkFont(size=14)
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(0, 10)
-        )
-
-        texto_arn = (
-            "Primeros nucleótidos:\n\n"
-            f"5' "
-            f"{str(self.arn_m[:90])}"
-            f"... 3'\n\n"
-            "ARNm completo:\n\n"
-            f"{self.arn_m}"
-        )
-
-        self.crear_caja_secuencia(
-            tarjeta,
-            texto_arn,
-            180
-        )
-
-        # ----------------------------------------------------
-        # RESULTADO
-        # ----------------------------------------------------
-
-        resultado = ctk.CTkFrame(
-            contenedor,
-            corner_radius=15,
-            border_width=1
-        )
-
-        resultado.pack(
-            fill="x",
-            pady=(0, 20)
-        )
-
-        ctk.CTkLabel(
-            resultado,
-            text="✓ Transcripción completada",
-            font=ctk.CTkFont(
-                size=20,
-                weight="bold"
-            )
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(20, 5)
-        )
-
-        ctk.CTkLabel(
-            resultado,
-            text=(
-                f"Se ha obtenido un ARNm de "
-                f"{len(self.arn_m)} nucleótidos."
-            ),
-            text_color="gray70",
-            font=ctk.CTkFont(size=14)
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(0, 20)
-        )
-
-        ctk.CTkButton(
-            contenedor,
-            text="Continuar a traducción  →",
-            command=self.mostrar_traduccion,
-            height=45,
-            width=220
-        ).pack(
-            anchor="e",
-            pady=(5, 25)
-        )
-
+            ctk.CTkLabel(
+                card,
+                text=d,
+                text_color=MUTED,
+                justify="left",
+                wraplength=400,
+                font=ctk.CTkFont(size=11),
+            ).pack(anchor="w", padx=14, pady=(2, 11))
 
     # ========================================================
     # TRADUCCIÓN
     # ========================================================
 
     def calcular_traduccion(self):
-
         if self.traduccion_realizada:
             return
 
         self.calcular_transcripcion()
 
-        self.proteina = self.arn_m.translate(
-            table=11,
-            to_stop=True
-        )
+        rna = str(self.arn_m)
+        inicio = rna.find("AUG")
 
-        stops = {
-            "UAA",
-            "UAG",
-            "UGA"
-        }
+        if inicio == -1:
+            self.inicio_traduccion = None
+            self.proteina = Seq("")
+            self.traduccion_realizada = True
+            return
 
-        self.codon_stop = None
-        self.posicion_stop = None
+        self.inicio_traduccion = inicio
 
-        for posicion in range(
-            0,
-            len(self.arn_m) - 2,
-            3
-        ):
+        stops = {"UAA", "UAG", "UGA"}
+        stop_pos = None
+        stop_codon = None
 
-            codon = str(
-                self.arn_m[
-                    posicion:
-                    posicion + 3
-                ]
-            )
+        for pos in range(inicio, len(rna) - 2, 3):
+            codon = rna[pos:pos + 3]
 
             if codon in stops:
-
-                self.codon_stop = codon
-
-                self.posicion_stop = (
-                    posicion // 3
-                ) + 1
-
+                stop_pos = pos
+                stop_codon = codon
                 break
+
+        if stop_pos is not None:
+            region = self.arn_m[inicio:stop_pos]
+            self.codon_stop = stop_codon
+            self.posicion_stop_nt = stop_pos
+            self.posicion_stop_codon = ((stop_pos - inicio) // 3) + 1
+        else:
+            region = self.arn_m[inicio:]
+            resto = len(region) % 3
+
+            if resto:
+                region = region[:-resto]
+
+            self.codon_stop = None
+            self.posicion_stop_nt = None
+            self.posicion_stop_codon = None
+
+        self.proteina = region.translate(table=11) if len(region) >= 3 else Seq("")
+
+        self.codones_traducidos = []
+
+        for pos in range(0, len(region), 3):
+            codon = region[pos:pos + 3]
+
+            if len(codon) < 3:
+                continue
+
+            aa = codon.translate(table=11)
+
+            # IMPORTANTE: anticodón de ARN, no ADN.
+            # Se presenta antiparalelo al codón: 3' UAC 5' frente a 5' AUG 3'.
+            anticodon = codon.complement_rna()
+
+            self.codones_traducidos.append(
+                {
+                    "codon": str(codon),
+                    "anticodon": str(anticodon),
+                    "aa": str(aa),
+                }
+            )
 
         self.traduccion_realizada = True
 
-
     def mostrar_traduccion(self):
-
         if not self.comprobar_adn():
             return
 
         self.calcular_traduccion()
+        self.marcar_activo(self.btn_trad)
+        self.limpiar()
+        cont = self.nuevo_contenedor()
 
-        self.marcar_activo(
-            self.boton_traduccion
+        self.encabezado(
+            cont,
+            "Traducción",
+            "El ribosoma lee los codones del ARNm y construye una secuencia de aminoácidos.",
+        )
+        self.paso_actual(cont, 4)
+
+        if self.inicio_traduccion is None:
+            aviso = self.panel(
+                cont,
+                "No se ha encontrado un codón AUG",
+                "El simulador utiliza AUG como codón de inicio didáctico. Sin él no se inicia la traducción.",
+            )
+            ctk.CTkLabel(
+                aviso,
+                text="Prueba con otra secuencia o utiliza el ejemplo incluido.",
+                text_color=WARNING,
+                font=ctk.CTkFont(size=13, weight="bold"),
+            ).pack(anchor="w", padx=22, pady=(4, 18))
+            return
+
+        metricas = ctk.CTkFrame(cont, fg_color="transparent")
+        metricas.pack(fill="x", pady=(0, 16))
+        for i in range(3):
+            metricas.grid_columnconfigure(i, weight=1)
+
+        self.metrica(
+            metricas,
+            0,
+            "Inicio",
+            f"AUG · nt {self.inicio_traduccion + 1}",
+            "Codón de inicio",
+            RNA,
+        )
+        self.metrica(
+            metricas,
+            1,
+            "Proteína",
+            f"{len(self.proteina)} aa",
+            "Tabla genética bacteriana 11",
+            PROTEIN,
+        )
+        self.metrica(
+            metricas,
+            2,
+            "Terminación",
+            self.codon_stop or "Sin STOP",
+            "UAA · UAG · UGA",
+            SUCCESS if self.codon_stop else WARNING,
         )
 
-        self.limpiar_pantalla()
-
-        contenedor = ctk.CTkScrollableFrame(
-            self.main,
-            fg_color="transparent"
+        tabs = ctk.CTkTabview(
+            cont,
+            fg_color=PANEL,
+            segmented_button_fg_color=PANEL_2,
+            segmented_button_selected_color="#246DA8",
+            segmented_button_selected_hover_color="#2F80C2",
+            border_width=1,
+            border_color=BORDER,
+            corner_radius=13,
         )
+        tabs.pack(fill="x", pady=(0, 16))
 
-        contenedor.pack(
-            fill="both",
-            expand=True,
-            padx=35,
-            pady=30
-        )
+        for nombre in ["Esquema", "Codones", "ARNt", "Proteína"]:
+            tabs.add(nombre)
 
-        self.crear_encabezado(
-            contenedor,
-            "Traducción y síntesis de proteínas",
-            "ARNm → proteína · Lectura de codones"
-        )
+        self._tab_trad_esquema(tabs.tab("Esquema"))
+        self._tab_trad_codones(tabs.tab("Codones"))
+        self._tab_trad_arnt(tabs.tab("ARNt"))
+        self._tab_trad_proteina(tabs.tab("Proteína"))
 
-        # ----------------------------------------------------
-        # FLUJO
-        # ----------------------------------------------------
-
-        flujo = ctk.CTkFrame(
-            contenedor,
-            corner_radius=15
-        )
-
-        flujo.pack(
-            fill="x",
-            pady=(0, 20)
+        nota = self.panel(
+            cont,
+            "Criterio utilizado",
+            "Para secuencias genéricas se busca el primer AUG y se continúa en ese marco hasta UAA, UAG o UGA. Para lacZ de E. coli se utiliza la tabla genética bacteriana 11.",
         )
 
         ctk.CTkLabel(
-            flujo,
+            nota,
             text=(
-                "ARNm   →   RIBOSOMA   →   CODONES   "
-                "→   AMINOÁCIDOS   →   PROTEÍNA"
+                f"Resultado: {len(self.proteina)} aminoácidos"
+                + (f" · STOP {self.codon_stop}" if self.codon_stop else " · no se encontró STOP en el marco")
             ),
-            font=ctk.CTkFont(
-                size=18,
-                weight="bold"
-            )
-        ).pack(
-            pady=25
+            text_color=PROTEIN,
+            font=ctk.CTkFont(size=13, weight="bold"),
+        ).pack(anchor="w", padx=22, pady=(4, 18))
+
+        self.boton_siguiente(cont, "Ver resultados finales  →", self.mostrar_resultados)
+
+    def _tab_trad_esquema(self, tab):
+        canvas = tk.Canvas(
+            tab,
+            height=245,
+            bg=PANEL,
+            highlightthickness=0,
+        )
+        canvas.pack(fill="x", padx=18, pady=16)
+        canvas.bind("<Configure>", lambda e: self._dibujar_trad_compacto(canvas, e.width))
+
+    def _dibujar_trad_compacto(self, canvas, ancho):
+        canvas.delete("all")
+        ancho = max(ancho, 760)
+
+        datos = self.codones_traducidos[:5]
+        if not datos:
+            return
+
+        centro = ancho // 2
+        y_rna = 145
+
+        # Línea ARNm
+        canvas.create_line(
+            80,
+            y_rna,
+            ancho - 80,
+            y_rna,
+            fill=RNA,
+            width=4,
+            arrow=tk.LAST,
         )
 
-        # ----------------------------------------------------
-        # CODONES
-        # ----------------------------------------------------
-
-        tarjeta = ctk.CTkFrame(
-            contenedor,
-            corner_radius=15
-        )
-
-        tarjeta.pack(
-            fill="x",
-            pady=(0, 18)
-        )
-
-        ctk.CTkLabel(
-            tarjeta,
-            text="1. Lectura del ARNm",
-            font=ctk.CTkFont(
-                size=20,
-                weight="bold"
-            )
-        ).pack(
+        canvas.create_text(
+            80,
+            y_rna + 24,
+            text="5' ARNm",
+            fill=RNA,
             anchor="w",
-            padx=25,
-            pady=(20, 5)
+            font=("Arial", 10, "bold"),
         )
 
-        ctk.CTkLabel(
-            tarjeta,
-            text=(
-                "El ribosoma lee el ARNm de tres "
-                "en tres nucleótidos. Cada triplete "
-                "se denomina codón."
-            ),
-            text_color="gray70",
-            wraplength=950,
-            justify="left",
-            font=ctk.CTkFont(size=14)
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(0, 15)
+        # Ribosoma, limpio y pequeño
+        canvas.create_rectangle(
+            centro - 250,
+            55,
+            centro + 250,
+            120,
+            fill="#2A2536",
+            outline="#8B72D8",
+            width=2,
+        )
+        canvas.create_text(
+            centro,
+            75,
+            text="RIBOSOMA",
+            fill=TEXT,
+            font=("Arial", 11, "bold"),
+        )
+        canvas.create_text(
+            centro,
+            98,
+            text="lectura del ARNm en codones de tres nucleótidos",
+            fill=MUTED,
+            font=("Arial", 9),
         )
 
-        codones_frame = ctk.CTkFrame(
-            tarjeta,
-            fg_color="transparent"
-        )
+        separacion = 108
+        inicio_x = centro - ((len(datos) - 1) * separacion) / 2
 
-        codones_frame.pack(
-            fill="x",
-            padx=20,
-            pady=(0, 20)
-        )
+        for i, dato in enumerate(datos):
+            x = inicio_x + i * separacion
+            codon = dato["codon"]
+            aa = dato["aa"]
 
-        for columna in range(6):
-            codones_frame.grid_columnconfigure(
-                columna,
-                weight=1
+            canvas.create_rectangle(
+                x - 35,
+                y_rna - 16,
+                x + 35,
+                y_rna + 16,
+                fill="#173027",
+                outline=RNA,
+                width=1,
+            )
+            canvas.create_text(
+                x,
+                y_rna,
+                text=codon,
+                fill=TEXT,
+                font=(MONO, 10, "bold"),
             )
 
-        numero_codones = min(
-            18,
-            len(self.arn_m) // 3
+            canvas.create_line(
+                x,
+                y_rna - 18,
+                x,
+                121,
+                fill="#56606A",
+                width=1,
+            )
+
+            canvas.create_text(
+                x,
+                188,
+                text=aa,
+                fill=PROTEIN,
+                font=("Arial", 15, "bold"),
+            )
+
+        canvas.create_text(
+            centro,
+            218,
+            text="Los aminoácidos se enlazan para formar la cadena polipeptídica.",
+            fill=MUTED,
+            font=("Arial", 10),
         )
 
-        for numero in range(
-            numero_codones
-        ):
+    def _tab_trad_codones(self, tab):
+        grid = ctk.CTkFrame(tab, fg_color="transparent")
+        grid.pack(fill="x", padx=14, pady=14)
 
-            inicio = numero * 3
+        for col in range(6):
+            grid.grid_columnconfigure(col, weight=1)
 
-            codon = self.arn_m[
-                inicio:
-                inicio + 3
-            ]
-
-            aminoacido = codon.translate(
-                table=11
+        for i, dato in enumerate(self.codones_traducidos[:12]):
+            card = ctk.CTkFrame(
+                grid,
+                fg_color=PANEL_2,
+                corner_radius=8,
+                border_width=1,
+                border_color=BORDER,
             )
+            card.grid(row=i // 6, column=i % 6, sticky="nsew", padx=4, pady=4)
 
-            fila = numero // 6
-            columna = numero % 6
-
-            caja = ctk.CTkFrame(
-                codones_frame,
-                corner_radius=10,
-                fg_color=(
-                    "gray85",
-                    "gray20"
-                )
-            )
-
-            caja.grid(
-                row=fila,
-                column=columna,
-                sticky="nsew",
-                padx=5,
-                pady=5
-            )
+            aa = dato["aa"]
+            nombre = AMINOACIDOS.get(aa, aa)
 
             ctk.CTkLabel(
-                caja,
-                text=str(codon),
-                font=ctk.CTkFont(
-                    size=16,
-                    weight="bold"
-                )
-            ).pack(
-                pady=(12, 2)
-            )
+                card,
+                text=dato["codon"],
+                text_color=RNA,
+                font=ctk.CTkFont(size=14, weight="bold"),
+            ).pack(pady=(10, 2))
 
             ctk.CTkLabel(
-                caja,
-                text="↓",
-                text_color="gray60"
+                card,
+                text=aa,
+                text_color=PROTEIN,
+                font=ctk.CTkFont(size=18, weight="bold"),
             ).pack()
 
             ctk.CTkLabel(
-                caja,
-                text=str(aminoacido),
-                font=ctk.CTkFont(
-                    size=18,
-                    weight="bold"
-                )
-            ).pack(
-                pady=(2, 12)
+                card,
+                text=nombre,
+                text_color=SUBTLE,
+                font=ctk.CTkFont(size=9),
+            ).pack(pady=(2, 10))
+
+    def _tab_trad_arnt(self, tab):
+        lineas = [
+            "El anticodón se muestra antiparalelo al codón del ARNm.",
+            "",
+            "ARNm                 ARNt",
+            "────────────────────────────────────",
+        ]
+
+        for i, dato in enumerate(self.codones_traducidos[:10], start=1):
+            lineas.append(
+                f"{i:>2}.  5' {dato['codon']} 3'   ↔   3' {dato['anticodon']} 5'   "
+                f"→ {dato['aa']} ({AMINOACIDOS.get(dato['aa'], dato['aa'])})"
             )
 
-        # ----------------------------------------------------
-        # PROTEÍNA
-        # ----------------------------------------------------
+        texto = "\n".join(lineas)
 
-        tarjeta = ctk.CTkFrame(
-            contenedor,
-            corner_radius=15
+        caja = ctk.CTkTextbox(
+            tab,
+            height=250,
+            font=(MONO, 11),
+            fg_color="#14171A",
+            text_color="#DDE2E7",
+            border_width=1,
+            border_color=BORDER,
+            corner_radius=9,
+            wrap="none",
         )
+        caja.pack(fill="x", padx=18, pady=18)
+        caja.insert("1.0", texto)
+        caja.configure(state="disabled")
 
-        tarjeta.pack(
-            fill="x",
-            pady=(0, 18)
-        )
-
-        ctk.CTkLabel(
-            tarjeta,
-            text="2. Proteína sintetizada",
-            font=ctk.CTkFont(
-                size=20,
-                weight="bold"
-            )
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(20, 5)
-        )
-
-        ctk.CTkLabel(
-            tarjeta,
-            text=(
-                f"Longitud: "
-                f"{len(self.proteina)} aminoácidos"
-            ),
-            text_color="gray65",
-            font=ctk.CTkFont(size=14)
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(0, 10)
-        )
-
-        texto_proteina = (
-            "Primeros 60 aminoácidos:\n\n"
-            f"{self.proteina[:60]}\n\n"
-            "Últimos 60 aminoácidos:\n\n"
-            f"{self.proteina[-60:]}\n\n"
-            "Secuencia completa:\n\n"
-            f"{self.proteina}"
-        )
-
-        self.crear_caja_secuencia(
-            tarjeta,
-            texto_proteina,
-            220
-        )
-
-        # ----------------------------------------------------
-        # STOP
-        # ----------------------------------------------------
-
-        tarjeta = ctk.CTkFrame(
-            contenedor,
-            corner_radius=15
-        )
-
-        tarjeta.pack(
-            fill="x",
-            pady=(0, 18)
-        )
-
-        ctk.CTkLabel(
-            tarjeta,
-            text="3. Señal de terminación",
-            font=ctk.CTkFont(
-                size=20,
-                weight="bold"
-            )
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(20, 5)
-        )
-
-        if self.codon_stop is not None:
-
-            texto_stop = (
-                f"Codón STOP encontrado: "
-                f"{self.codon_stop}\n\n"
-                f"Posición de codón: "
-                f"{self.posicion_stop}\n\n"
-                "El ribosoma finaliza la traducción."
-            )
-
+    def _tab_trad_proteina(self, tab):
+        if len(self.proteina) == 0:
+            texto = "No se ha sintetizado proteína."
         else:
-
-            texto_stop = (
-                "No se ha encontrado un codón "
-                "STOP en el marco de lectura."
+            texto = (
+                f"Longitud: {len(self.proteina)} aminoácidos\n\n"
+                f"Primeros 60:\n{self.proteina[:60]}\n\n"
+                f"Últimos 60:\n{self.proteina[-60:]}\n\n"
+                f"Secuencia completa:\n{self.proteina}"
             )
 
-        ctk.CTkLabel(
-            tarjeta,
-            text=texto_stop,
-            justify="left",
-            font=ctk.CTkFont(size=15)
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(5, 22)
+        caja = ctk.CTkTextbox(
+            tab,
+            height=270,
+            font=(MONO, 11),
+            fg_color="#14171A",
+            text_color="#DDE2E7",
+            border_width=1,
+            border_color=BORDER,
+            corner_radius=9,
+            wrap="word",
         )
-
-        # ----------------------------------------------------
-        # RESULTADO
-        # ----------------------------------------------------
-
-        resultado = ctk.CTkFrame(
-            contenedor,
-            corner_radius=15,
-            border_width=1
-        )
-
-        resultado.pack(
-            fill="x",
-            pady=(0, 20)
-        )
-
-        ctk.CTkLabel(
-            resultado,
-            text="✓ Traducción completada",
-            font=ctk.CTkFont(
-                size=20,
-                weight="bold"
-            )
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(20, 5)
-        )
-
-        ctk.CTkLabel(
-            resultado,
-            text=(
-                f"Se ha sintetizado una proteína de "
-                f"{len(self.proteina)} aminoácidos."
-            ),
-            text_color="gray70",
-            font=ctk.CTkFont(size=14)
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(0, 20)
-        )
-
-        ctk.CTkButton(
-            contenedor,
-            text="Ver resultado final  →",
-            command=self.mostrar_resultados,
-            height=45,
-            width=220
-        ).pack(
-            anchor="e",
-            pady=(5, 25)
-        )
-
+        caja.pack(fill="x", padx=18, pady=18)
+        caja.insert("1.0", texto)
+        caja.configure(state="disabled")
 
     # ========================================================
-    # RESULTADOS FINALES
+    # RESULTADOS
     # ========================================================
 
     def mostrar_resultados(self):
-
         if not self.comprobar_adn():
             return
 
@@ -2174,347 +1648,188 @@ class SimuladorDogmaCentral(ctk.CTk):
         self.calcular_transcripcion()
         self.calcular_traduccion()
 
-        self.marcar_activo(
-            self.boton_resultados
-        )
+        self.marcar_activo(self.btn_res)
+        self.limpiar()
+        cont = self.nuevo_contenedor()
 
-        self.limpiar_pantalla()
-
-        contenedor = ctk.CTkScrollableFrame(
-            self.main,
-            fg_color="transparent"
-        )
-
-        contenedor.pack(
-            fill="both",
-            expand=True,
-            padx=35,
-            pady=30
-        )
-
-        self.crear_encabezado(
-            contenedor,
+        self.encabezado(
+            cont,
             "Resultado de la simulación",
-            (
-                "Flujo completo de la información genética: "
-                "ADN → ADN → ARN → proteína."
-            )
+            "Resumen compacto del flujo completo de información genética.",
         )
 
-        # ----------------------------------------------------
-        # TARJETAS
-        # ----------------------------------------------------
+        metricas = ctk.CTkFrame(cont, fg_color="transparent")
+        metricas.pack(fill="x", pady=(0, 16))
 
-        tarjetas = ctk.CTkFrame(
-            contenedor,
-            fg_color="transparent"
+        for i in range(3):
+            metricas.grid_columnconfigure(i, weight=1)
+
+        self.metrica(metricas, 0, "ADN", f"{len(self.adn)} nt", "Secuencia inicial", DNA)
+        self.metrica(metricas, 1, "ARNm", f"{len(self.arn_m)} nt", "Producto de transcripción", RNA)
+
+        prot = (
+            f"{len(self.proteina)} aa"
+            if self.inicio_traduccion is not None
+            else "No traducida"
         )
+        self.metrica(metricas, 2, "Proteína", prot, "Producto de traducción", PROTEIN)
 
-        tarjetas.pack(
-            fill="x",
-            pady=(0, 25)
-        )
+        flujo = self.panel(cont, "Dogma central")
 
-        for columna in range(3):
-            tarjetas.grid_columnconfigure(
-                columna,
-                weight=1
-            )
+        barra = ctk.CTkFrame(flujo, fg_color="transparent")
+        barra.pack(fill="x", padx=22, pady=(8, 18))
 
-        self.crear_tarjeta(
-            tarjetas,
-            0,
-            "ADN",
-            f"{len(self.adn)} nt",
-            "Molécula inicial"
-        )
+        pasos = [
+            ("ADN", DNA),
+            ("Replicación", TEXT),
+            ("ADN", DNA),
+            ("Transcripción", TEXT),
+            ("ARNm", RNA),
+            ("Traducción", TEXT),
+            ("Proteína", PROTEIN),
+        ]
 
-        self.crear_tarjeta(
-            tarjetas,
-            1,
-            "ARNm",
-            f"{len(self.arn_m)} nt",
-            "Transcripción completada"
-        )
+        for i, (nombre, color) in enumerate(pasos):
+            ctk.CTkLabel(
+                barra,
+                text=nombre,
+                text_color=color,
+                font=ctk.CTkFont(size=14, weight="bold"),
+            ).pack(side="left")
 
-        self.crear_tarjeta(
-            tarjetas,
-            2,
-            "Proteína",
-            f"{len(self.proteina)} aa",
-            "Traducción completada"
-        )
+            if i < len(pasos) - 1:
+                ctk.CTkLabel(
+                    barra,
+                    text="  →  ",
+                    text_color=SUBTLE,
+                    font=ctk.CTkFont(size=14),
+                ).pack(side="left")
 
-        # ----------------------------------------------------
-        # FLUJO COMPLETO
-        # ----------------------------------------------------
+        resumen = self.panel(cont, "Resumen")
 
-        flujo = ctk.CTkFrame(
-            contenedor,
-            corner_radius=15
-        )
-
-        flujo.pack(
-            fill="x",
-            pady=(0, 20)
-        )
-
-        ctk.CTkLabel(
-            flujo,
-            text="Flujo completo",
-            font=ctk.CTkFont(
-                size=20,
-                weight="bold"
-            )
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(20, 15)
-        )
-
-        ctk.CTkLabel(
-            flujo,
-            text=(
-                "ADN\n"
-                "↓\n"
-                "REPLICACIÓN\n"
-                "↓\n"
-                "ADN\n"
-                "↓\n"
-                "TRANSCRIPCIÓN\n"
-                "↓\n"
-                "ARNm\n"
-                "↓\n"
-                "TRADUCCIÓN\n"
-                "↓\n"
-                "PROTEÍNA"
-            ),
-            font=ctk.CTkFont(
-                size=18,
-                weight="bold"
-            ),
-            justify="center"
-        ).pack(
-            pady=(0, 25)
-        )
-
-        # ----------------------------------------------------
-        # DATOS FINALES
-        # ----------------------------------------------------
-
-        resumen = ctk.CTkFrame(
-            contenedor,
-            corner_radius=15
-        )
-
-        resumen.pack(
-            fill="x",
-            pady=(0, 20)
-        )
-
-        ctk.CTkLabel(
-            resumen,
-            text="Resumen",
-            font=ctk.CTkFont(
-                size=20,
-                weight="bold"
-            )
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(20, 12)
-        )
-
-        stop_texto = (
-            self.codon_stop
-            if self.codon_stop
+        inicio_txt = (
+            str(self.inicio_traduccion + 1)
+            if self.inicio_traduccion is not None
             else "No encontrado"
         )
 
-        texto = (
-            f"Secuencia: {self.registro.id}\n\n"
-            f"ADN inicial: {len(self.adn)} nucleótidos\n\n"
-            f"Fragmentos de Okazaki simulados: "
-            f"{len(self.fragmentos_okazaki)}\n\n"
-            f"ARNm obtenido: {len(self.arn_m)} nucleótidos\n\n"
-            f"Proteína sintetizada: "
-            f"{len(self.proteina)} aminoácidos\n\n"
-            f"Codón STOP: {stop_texto}"
+        stop_txt = self.codon_stop or "No encontrado"
+
+        filas = [
+            ("Secuencia", self.registro.id),
+            ("Longitud del ADN", f"{len(self.adn)} nt"),
+            ("Fragmentos de Okazaki simulados", str(len(self.fragmentos_okazaki))),
+            ("Longitud del ARNm", f"{len(self.arn_m)} nt"),
+            ("Primer AUG", f"posición {inicio_txt}"),
+            ("Proteína", prot),
+            ("Codón STOP", stop_txt),
+        ]
+
+        tabla = ctk.CTkFrame(resumen, fg_color="transparent")
+        tabla.pack(fill="x", padx=22, pady=(7, 17))
+        tabla.grid_columnconfigure(1, weight=1)
+
+        for fila, (campo, valor) in enumerate(filas):
+            ctk.CTkLabel(
+                tabla,
+                text=campo,
+                text_color=MUTED,
+                font=ctk.CTkFont(size=12),
+            ).grid(row=fila, column=0, sticky="w", padx=(0, 28), pady=5)
+
+            ctk.CTkLabel(
+                tabla,
+                text=valor,
+                text_color=TEXT,
+                font=ctk.CTkFont(size=12, weight="bold"),
+            ).grid(row=fila, column=1, sticky="w", pady=5)
+
+        final = self.panel(
+            cont,
+            "Simulación completada",
+            "El programa ha representado ADN → ADN, ADN → ARN y ARN → proteína mediante operaciones de Biopython.",
         )
 
         ctk.CTkLabel(
-            resumen,
-            text=texto,
-            justify="left",
-            font=ctk.CTkFont(size=15)
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(0, 22)
-        )
+            final,
+            text="✓ Flujo completo procesado",
+            text_color=SUCCESS,
+            font=ctk.CTkFont(size=14, weight="bold"),
+        ).pack(anchor="w", padx=22, pady=(3, 18))
 
-        # ----------------------------------------------------
-        # NOTA
-        # ----------------------------------------------------
-
-        nota = ctk.CTkFrame(
-            contenedor,
-            corner_radius=15
-        )
-
-        nota.pack(
-            fill="x",
-            pady=(0, 20)
-        )
-
-        ctk.CTkLabel(
-            nota,
-            text="Nota sobre la simulación",
-            font=ctk.CTkFont(
-                size=18,
-                weight="bold"
-            )
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(18, 5)
-        )
-
-        ctk.CTkLabel(
-            nota,
-            text=(
-                "Para representar visualmente la síntesis "
-                "discontinua se utilizan fragmentos de "
-                "Okazaki de 500 nucleótidos como "
-                "simplificación didáctica."
-            ),
-            text_color="gray70",
-            wraplength=950,
-            justify="left",
-            font=ctk.CTkFont(size=13)
-        ).pack(
-            anchor="w",
-            padx=25,
-            pady=(0, 20)
-        )
-
-        # ----------------------------------------------------
-        # BOTONES
-        # ----------------------------------------------------
-
-        botones = ctk.CTkFrame(
-            contenedor,
-            fg_color="transparent"
-        )
-
-        botones.pack(
-            fill="x",
-            pady=(5, 30)
-        )
+        acciones = ctk.CTkFrame(cont, fg_color="transparent")
+        acciones.pack(fill="x", pady=(0, 18))
 
         ctk.CTkButton(
-            botones,
+            acciones,
             text="Volver al inicio",
             command=self.mostrar_inicio,
-            height=45,
-            width=170
-        ).pack(
-            side="left",
-            padx=(0, 10)
-        )
+            height=42,
+            width=165,
+            corner_radius=8,
+        ).pack(side="left", padx=(0, 8))
 
         ctk.CTkButton(
-            botones,
+            acciones,
             text="Cargar otra secuencia",
             command=self.cargar_archivo,
-            height=45,
-            width=190
-        ).pack(
-            side="left"
-        )
-
+            height=42,
+            width=185,
+            corner_radius=8,
+            fg_color=PANEL_2,
+            hover_color="#30363D",
+        ).pack(side="left")
 
     # ========================================================
     # UTILIDADES
     # ========================================================
 
     def comprobar_adn(self):
-
         if self.adn is None:
-
-            self.mostrar_error(
-                "Primero debes cargar una secuencia de ADN."
-            )
-
+            self.mostrar_error("Primero debes cargar una secuencia de ADN.")
             return False
-
         return True
 
+    def obtener_nombre_archivo(self):
+        if self.ruta_archivo is not None:
+            return Path(self.ruta_archivo).name
+
+        if self.registro is not None:
+            return f"Secuencia activa: {self.registro.id}"
+
+        return "Ninguna secuencia cargada"
 
     def mostrar_error(self, mensaje):
-
-        ventana = ctk.CTkToplevel(
-            self
-        )
-
+        ventana = ctk.CTkToplevel(self)
         ventana.title("Aviso")
-        ventana.geometry("430x220")
-        ventana.resizable(
-            False,
-            False
-        )
-
-        ventana.transient(
-            self
-        )
-
+        ventana.geometry("440x220")
+        ventana.resizable(False, False)
+        ventana.transient(self)
         ventana.grab_set()
 
         ctk.CTkLabel(
             ventana,
-            text="⚠",
-            font=ctk.CTkFont(
-                size=35
-            )
-        ).pack(
-            pady=(25, 5)
-        )
+            text="Aviso",
+            text_color=TEXT,
+            font=ctk.CTkFont(size=21, weight="bold"),
+        ).pack(pady=(28, 6))
 
         ctk.CTkLabel(
             ventana,
             text=mensaje,
+            text_color=MUTED,
             wraplength=360,
-            justify="center"
-        ).pack(
-            padx=25,
-            pady=10
-        )
+            justify="center",
+        ).pack(padx=25, pady=10)
 
         ctk.CTkButton(
             ventana,
             text="Aceptar",
             command=ventana.destroy,
-            width=120
-        ).pack(
-            pady=10
-        )
+            width=120,
+        ).pack(pady=10)
 
-
-    def obtener_nombre_archivo(self):
-
-        if self.ruta_archivo is None:
-            return "Ningún archivo cargado"
-
-        return Path(
-            self.ruta_archivo
-        ).name
-
-
-# ============================================================
-# EJECUCIÓN
-# ============================================================
 
 if __name__ == "__main__":
-
     app = SimuladorDogmaCentral()
     app.mainloop()
