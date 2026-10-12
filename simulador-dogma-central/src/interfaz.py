@@ -811,63 +811,168 @@ class SimuladorDogmaCentral(ctk.CTk):
 
         x0 = 40
         xf = ancho - 40
-        xfork = int(ancho * 0.43)
+        xfork = int(ancho * 0.57)
 
         y1 = 95
         y2 = 155
 
-        # ADN parental
-        canvas.create_line(x0, y1, xfork, y1, fill=DNA, width=4)
-        canvas.create_line(x0, y2, xfork, y2, fill=DNA, width=4)
+        # El ADN sin separar queda a la derecha.
+        # Por tanto, la horquilla avanza hacia la derecha.
+        #
+        # Hebra parental superior: 5' -> 3' = molde rezagado
+        # Hebra parental inferior: 3' -> 5' = molde líder
 
-        for x in range(x0 + 14, xfork - 8, 24):
-            canvas.create_line(x, y1 + 6, x, y2 - 6, fill="#38404A", width=1)
+        # ====================================================
+        # HEBRAS PARENTALES ABIERTAS
+        # ====================================================
 
-        # Horquilla parental abierta
-        canvas.create_line(xfork, y1, xf, 45, fill=DNA, width=4)
-        canvas.create_line(xfork, y2, xf, 205, fill=DNA, width=4)
-
-        # Nueva líder
         canvas.create_line(
-            xfork + 16,
-            y2 + 4,
-            xf - 25,
-            199,
-            fill=SUCCESS,
-            width=5,
-            arrow=tk.LAST,
+            x0,
+            45,
+            xfork,
+            y1,
+            fill=DNA,
+            width=4
         )
 
-        # Okazaki, discretos
-        tramos = [
-            (xf - 65, 54, xf - 180, 69),
-            (xf - 215, 76, xf - 330, 91),
-            (xf - 365, 98, xfork + 35, 112),
-        ]
-        for x1, yy1, x2, yy2 in tramos:
-            if x2 > xfork:
-                canvas.create_line(
-                    x1, yy1, x2, yy2,
-                    fill=WARNING,
-                    width=5,
-                    arrow=tk.LAST,
-                )
+        canvas.create_line(
+            x0,
+            205,
+            xfork,
+            y2,
+            fill=DNA,
+            width=4
+        )
 
-        # Helicasa minimal
+        # ====================================================
+        # ADN DOBLE TODAVÍA SIN SEPARAR
+        # ====================================================
+
+        canvas.create_line(
+            xfork,
+            y1,
+            xf,
+            y1,
+            fill=DNA,
+            width=4
+        )
+
+        canvas.create_line(
+            xfork,
+            y2,
+            xf,
+            y2,
+            fill=DNA,
+            width=4
+        )
+
+        for x in range(
+            xfork + 14,
+            xf - 8,
+            24
+        ):
+            canvas.create_line(
+                x,
+                y1 + 6,
+                x,
+                y2 - 6,
+                fill="#38404A",
+                width=1
+            )
+
+        # ====================================================
+        # AVANCE DE LA HORQUILLA
+        # ====================================================
+
+        canvas.create_text(
+            xfork,
+            18,
+            text="avance de la horquilla",
+            fill=MUTED,
+            font=("Arial", 9)
+        )
+
+        canvas.create_line(
+            xfork - 70,
+            36,
+            xfork + 70,
+            36,
+            fill=MUTED,
+            width=2,
+            arrow=tk.LAST
+        )
+
+        # ====================================================
+        # CADENA LÍDER
+        # ====================================================
+        # Se sintetiza continuamente 5' -> 3'
+        # en el mismo sentido que avanza la horquilla.
+
+        canvas.create_line(
+            x0 + 25,
+            197,
+            xfork - 16,
+            y2 + 4,
+            fill=SUCCESS,
+            width=5,
+            arrow=tk.LAST
+        )
+
+        # ====================================================
+        # CADENA REZAGADA
+        # ====================================================
+        # Los fragmentos de Okazaki también se sintetizan
+        # 5' -> 3', pero alejándose de la horquilla.
+
+        span = xfork - x0
+
+        def y_superior(x):
+            fraccion = (x - x0) / span
+            return 45 + (y1 - 45) * fraccion
+
+        tramos = [
+            (0.92, 0.68),
+            (0.62, 0.38),
+            (0.32, 0.08)
+        ]
+
+        for inicio_frac, fin_frac in tramos:
+
+            x_inicio = x0 + span * inicio_frac
+            x_fin = x0 + span * fin_frac
+
+            y_inicio = y_superior(x_inicio) + 9
+            y_fin = y_superior(x_fin) + 9
+
+            canvas.create_line(
+                x_inicio,
+                y_inicio,
+                x_fin,
+                y_fin,
+                fill=WARNING,
+                width=5,
+                arrow=tk.LAST
+            )
+
+        # ====================================================
+        # HELICASA
+        # ====================================================
+
         canvas.create_oval(
             xfork - 22,
             103,
             xfork + 22,
             147,
             fill="#8B72D8",
-            outline="",
+            outline=""
         )
+
         canvas.create_text(
             xfork,
             125,
             text="H",
             fill=TEXT,
-            font=("Arial", 12, "bold"),
+            font=("Arial", 12, "bold")
         )
 
         canvas.create_text(
@@ -875,48 +980,88 @@ class SimuladorDogmaCentral(ctk.CTk):
             168,
             text="helicasa",
             fill=MUTED,
-            font=("Arial", 9),
+            font=("Arial", 9)
         )
 
-        # Etiquetas
-        canvas.create_text(
-            int(ancho * 0.72),
-            25,
-            text="Cadena rezagada · síntesis discontinua",
-            fill=WARNING,
-            font=("Arial", 11, "bold"),
-        )
-        canvas.create_text(
-            int(ancho * 0.72),
-            228,
-            text="Cadena líder · síntesis continua 5' → 3'",
-            fill=SUCCESS,
-            font=("Arial", 11, "bold"),
-        )
+        # ====================================================
+        # POLARIDADES
+        # ====================================================
+
+        # Hebra parental superior: 5' -> 3'
+
         canvas.create_text(
             x0,
-            73,
+            28,
             text="5'",
             fill=MUTED,
             anchor="w",
-            font=("Arial", 10),
-        )
-        canvas.create_text(
-            x0,
-            176,
-            text="3'",
-            fill=MUTED,
-            anchor="w",
-            font=("Arial", 10),
+            font=("Arial", 10)
         )
 
         canvas.create_text(
+            xf,
+            78,
+            text="3'",
+            fill=MUTED,
+            anchor="e",
+            font=("Arial", 10)
+        )
+
+        # Hebra parental inferior: 3' -> 5'
+
+        canvas.create_text(
             x0,
+            222,
+            text="3'",
+            fill=MUTED,
+            anchor="w",
+            font=("Arial", 10)
+        )
+
+        canvas.create_text(
+            xf,
+            178,
+            text="5'",
+            fill=MUTED,
+            anchor="e",
+            font=("Arial", 10)
+        )
+
+        # ====================================================
+        # ETIQUETAS
+        # ====================================================
+
+        canvas.create_text(
+            int(ancho * 0.28),
+            18,
+            text="Cadena rezagada · síntesis discontinua",
+            fill=WARNING,
+            font=("Arial", 11, "bold")
+        )
+
+        canvas.create_text(
+            int(ancho * 0.28),
+            228,
+            text="Cadena líder · síntesis continua 5' → 3'",
+            fill=SUCCESS,
+            font=("Arial", 11, "bold")
+        )
+
+        # ====================================================
+        # LEYENDA
+        # ====================================================
+
+        canvas.create_text(
+            int(ancho * 0.54),
             238,
-            text="Azul: hebra parental     Verde: nueva hebra     Amarillo: fragmentos de Okazaki",
+            text=(
+                "Azul: hebra parental     "
+                "Verde: nueva hebra líder     "
+                "Amarillo: fragmentos de Okazaki"
+            ),
             fill=SUBTLE,
             anchor="w",
-            font=("Arial", 9),
+            font=("Arial", 9)
         )
 
     def _tab_replicacion_secuencias(self, tab):
